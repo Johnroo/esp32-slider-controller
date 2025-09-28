@@ -58,6 +58,10 @@ def send_osc_message(address, *args):
 def index():
     return render_template('index.html')
 
+@app.route('/advanced')
+def advanced():
+    return render_template('advanced.html')
+
 @app.route('/api/status', methods=['GET'])
 def api_status():
     """Check server status"""
@@ -179,6 +183,197 @@ def api_reset_all_axes():
     zoom_success = send_osc_message('/axis_zoom', 0.5)
     slide_success = send_osc_message('/axis_slide', 0.5)
     return jsonify({'success': pan_success and tilt_success and zoom_success and slide_success})
+
+#==================== NEW: Advanced Motion Control Routes ====================
+
+@app.route('/api/preset/set', methods=['POST'])
+def set_preset():
+    """Set preset position"""
+    try:
+        data = request.get_json()
+        preset_id = int(data.get('id', 0))
+        pan = int(data.get('pan', 0))
+        tilt = int(data.get('tilt', 0))
+        zoom = int(data.get('zoom', 0))
+        slide = int(data.get('slide', 0))
+        
+        # Send OSC message
+        send_osc_message('/preset/set', preset_id, pan, tilt, zoom, slide)
+        
+        return jsonify({
+            'success': True,
+            'preset_id': preset_id,
+            'positions': {'pan': pan, 'tilt': tilt, 'zoom': zoom, 'slide': slide},
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/preset/recall', methods=['POST'])
+def recall_preset():
+    """Recall preset with duration"""
+    try:
+        data = request.get_json()
+        preset_id = int(data.get('id', 0))
+        duration = float(data.get('duration', 2.0))
+        
+        # Send OSC message
+        send_osc_message('/preset/recall', preset_id, duration)
+        
+        return jsonify({
+            'success': True,
+            'preset_id': preset_id,
+            'duration': duration,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/joystick/pan', methods=['POST'])
+def set_pan_offset():
+    """Set pan joystick offset (-1.0 to 1.0)"""
+    try:
+        data = request.get_json()
+        value = float(data.get('value', 0.0))
+        
+        # Clamp value between -1.0 and 1.0
+        value = max(-1.0, min(1.0, value))
+        
+        # Send OSC message
+        send_osc_message('/pan', value)
+        
+        return jsonify({
+            'success': True,
+            'offset': value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/joystick/tilt', methods=['POST'])
+def set_tilt_offset():
+    """Set tilt joystick offset (-1.0 to 1.0)"""
+    try:
+        data = request.get_json()
+        value = float(data.get('value', 0.0))
+        
+        # Clamp value between -1.0 and 1.0
+        value = max(-1.0, min(1.0, value))
+        
+        # Send OSC message
+        send_osc_message('/tilt', value)
+        
+        return jsonify({
+            'success': True,
+            'offset': value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/slide/jog', methods=['POST'])
+def slide_jog():
+    """Slide jog mode (-1.0 to 1.0)"""
+    try:
+        data = request.get_json()
+        value = float(data.get('value', 0.0))
+        
+        # Clamp value between -1.0 and 1.0
+        value = max(-1.0, min(1.0, value))
+        
+        # Send OSC message
+        send_osc_message('/slide/jog', value)
+        
+        return jsonify({
+            'success': True,
+            'jog_speed': value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/slide/goto', methods=['POST'])
+def slide_goto():
+    """Slide goto position with duration"""
+    try:
+        data = request.get_json()
+        position = float(data.get('position', 0.5))  # 0.0 to 1.0
+        duration = float(data.get('duration', 2.0))
+        
+        # Clamp position between 0.0 and 1.0
+        position = max(0.0, min(1.0, position))
+        
+        # Send OSC message
+        send_osc_message('/slide/goto', position, duration)
+        
+        return jsonify({
+            'success': True,
+            'position': position,
+            'duration': duration,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/config/offset_range', methods=['POST'])
+def set_offset_range():
+    """Set joystick offset ranges"""
+    try:
+        data = request.get_json()
+        pan_range = int(data.get('pan_range', 800))
+        tilt_range = int(data.get('tilt_range', 800))
+        
+        # Send OSC message
+        send_osc_message('/config/offset_range', pan_range, tilt_range)
+        
+        return jsonify({
+            'success': True,
+            'pan_range': pan_range,
+            'tilt_range': tilt_range,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/config/pan_map', methods=['POST'])
+def set_pan_mapping():
+    """Set slide to pan mapping"""
+    try:
+        data = request.get_json()
+        min_value = int(data.get('min', 800))
+        max_value = int(data.get('max', -800))
+        
+        # Send OSC message
+        send_osc_message('/config/pan_map', min_value, max_value)
+        
+        return jsonify({
+            'success': True,
+            'min': min_value,
+            'max': max_value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/config/tilt_map', methods=['POST'])
+def set_tilt_mapping():
+    """Set slide to tilt mapping"""
+    try:
+        data = request.get_json()
+        min_value = int(data.get('min', 0))
+        max_value = int(data.get('max', 0))
+        
+        # Send OSC message
+        send_osc_message('/config/tilt_map', min_value, max_value)
+        
+        return jsonify({
+            'success': True,
+            'min': min_value,
+            'max': max_value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
     print(f"ESP32 Slider Controller starting...")

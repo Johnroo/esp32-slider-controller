@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Slider Controller - Advanced</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .panel {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .panel h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 10px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #dee2e6;
+            outline: none;
+            -webkit-appearance: none;
+            transition: all 0.3s ease;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .input-group input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #dc3545, #c82333);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #1e7e34);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(45deg, #ffc107, #e0a800);
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+        }
+        
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        
+        .preset-btn {
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .preset-btn:hover {
+            border-color: #007bff;
+            background: #f8f9fa;
+            transform: translateY(-2px);
+        }
+        
+        .preset-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .status {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .joystick-container {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .joystick {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .joystick h4 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        
+        .value-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .config-section {
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .config-section h4 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 ESP32 Slider Controller - Advanced</h1>
+        
+        <div class="grid">
+            <!-- Presets Panel -->
+            <div class="panel">
+                <h3>🎯 Presets</h3>
+                <div class="preset-grid">
+                    <div class="preset-btn" onclick="setPreset(0)">Preset 0</div>
+                    <div class="preset-btn" onclick="setPreset(1)">Preset 1</div>
+                    <div class="preset-btn" onclick="setPreset(2)">Preset 2</div>
+                    <div class="preset-btn" onclick="setPreset(3)">Preset 3</div>
+                    <div class="preset-btn" onclick="setPreset(4)">Preset 4</div>
+                    <div class="preset-btn" onclick="setPreset(5)">Preset 5</div>
+                    <div class="preset-btn" onclick="setPreset(6)">Preset 6</div>
+                    <div class="preset-btn" onclick="setPreset(7)">Preset 7</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Duration (seconds):</label>
+                    <input type="number" id="presetDuration" value="2.0" min="0.1" max="10.0" step="0.1">
+                </div>
+                
+                <button class="btn btn-success" onclick="saveCurrentPreset()">💾 Save Current Position</button>
+            </div>
+            
+            <!-- Joystick Panel -->
+            <div class="panel">
+                <h3>🎮 Joystick Controls</h3>
+                <div class="joystick-container">
+                    <div class="joystick">
+                        <h4>Pan Offset</h4>
+                        <input type="range" class="slider" id="panOffset" min="-1" max="1" step="0.01" value="0">
+                        <div class="value-display" id="panValue">0.00</div>
+                    </div>
+                    <div class="joystick">
+                        <h4>Tilt Offset</h4>
+                        <input type="range" class="slider" id="tiltOffset" min="-1" max="1" step="0.01" value="0">
+                        <div class="value-display" id="tiltValue">0.00</div>
+                    </div>
+                </div>
+                <button class="btn btn-warning" onclick="resetOffsets()">🔄 Reset Offsets</button>
+            </div>
+            
+            <!-- Slide Controls -->
+            <div class="panel">
+                <h3>📹 Slide Controls</h3>
+                <div class="control-group">
+                    <label>Jog Speed (-1 to +1):</label>
+                    <input type="range" class="slider" id="slideJog" min="-1" max="1" step="0.01" value="0">
+                    <div class="value-display" id="slideJogValue">0.00</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Goto Position (0 to 1):</label>
+                    <input type="range" class="slider" id="slideGoto" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="slideGotoValue">0.50</div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="number" id="slideDuration" value="2.0" min="0.1" max="10.0" step="0.1" placeholder="Duration">
+                    <button class="btn" onclick="slideGotoPosition()">🚀 Go to Position</button>
+                </div>
+            </div>
+            
+            <!-- Direct Axis Controls -->
+            <div class="panel">
+                <h3>🎛️ Direct Axis Controls</h3>
+                <div class="control-group">
+                    <label>Pan (0 to 1):</label>
+                    <input type="range" class="slider" id="axisPan" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisPanValue">0.50</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Tilt (0 to 1):</label>
+                    <input type="range" class="slider" id="axisTilt" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisTiltValue">0.50</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Zoom (0 to 1):</label>
+                    <input type="range" class="slider" id="axisZoom" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisZoomValue">0.50</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Slide (0 to 1):</label>
+                    <input type="range" class="slider" id="axisSlide" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisSlideValue">0.50</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Configuration Panel -->
+        <div class="config-section">
+            <h4>⚙️ Advanced Configuration</h4>
+            <div class="config-grid">
+                <div class="control-group">
+                    <label>Pan Offset Range:</label>
+                    <input type="number" id="panRange" value="800" min="100" max="2000">
+                </div>
+                <div class="control-group">
+                    <label>Tilt Offset Range:</label>
+                    <input type="number" id="tiltRange" value="800" min="100" max="2000">
+                </div>
+                <div class="control-group">
+                    <label>Pan Map Min:</label>
+                    <input type="number" id="panMapMin" value="800" min="-2000" max="2000">
+                </div>
+                <div class="control-group">
+                    <label>Pan Map Max:</label>
+                    <input type="number" id="panMapMax" value="-800" min="-2000" max="2000">
+                </div>
+                <div class="control-group">
+                    <label>Tilt Map Min:</label>
+                    <input type="number" id="tiltMapMin" value="0" min="-2000" max="2000">
+                </div>
+                <div class="control-group">
+                    <label>Tilt Map Max:</label>
+                    <input type="number" id="tiltMapMax" value="0" min="-2000" max="2000">
+                </div>
+            </div>
+            <button class="btn btn-warning" onclick="applyConfig()">🔧 Apply Configuration</button>
+        </div>
+        
+        <!-- Status -->
+        <div class="status" id="status">
+            Ready - Connected to ESP32
+        </div>
+    </div>
+
+    <script>
+        // Slider event listeners
+        document.getElementById('panOffset').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('panValue').textContent = value.toFixed(2);
+            sendPanOffset(value);
+        });
+        
+        document.getElementById('tiltOffset').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('tiltValue').textContent = value.toFixed(2);
+            sendTiltOffset(value);
+        });
+        
+        document.getElementById('slideJog').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('slideJogValue').textContent = value.toFixed(2);
+            sendSlideJog(value);
+        });
+        
+        document.getElementById('slideGoto').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('slideGotoValue').textContent = value.toFixed(2);
+        });
+        
+        // Direct axis controls
+        document.getElementById('axisPan').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('axisPanValue').textContent = value.toFixed(2);
+            sendAxisPan(value);
+        });
+        
+        document.getElementById('axisTilt').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('axisTiltValue').textContent = value.toFixed(2);
+            sendAxisTilt(value);
+        });
+        
+        document.getElementById('axisZoom').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('axisZoomValue').textContent = value.toFixed(2);
+            sendAxisZoom(value);
+        });
+        
+        document.getElementById('axisSlide').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('axisSlideValue').textContent = value.toFixed(2);
+            sendAxisSlide(value);
+        });
+        
+        // API Functions
+        function sendPanOffset(value) {
+            fetch('/api/joystick/pan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function sendTiltOffset(value) {
+            fetch('/api/joystick/tilt', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function sendSlideJog(value) {
+            fetch('/api/slide/jog', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function slideGotoPosition() {
+            const position = parseFloat(document.getElementById('slideGoto').value);
+            const duration = parseFloat(document.getElementById('slideDuration').value);
+            fetch('/api/slide/goto', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({position: position, duration: duration})
+            });
+        }
+        
+        function sendAxisPan(value) {
+            fetch('/api/axis_pan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function sendAxisTilt(value) {
+            fetch('/api/axis_tilt', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function sendAxisZoom(value) {
+            fetch('/api/axis_zoom', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function sendAxisSlide(value) {
+            fetch('/api/axis_slide', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: value})
+            });
+        }
+        
+        function setPreset(presetId) {
+            const duration = parseFloat(document.getElementById('presetDuration').value);
+            fetch('/api/preset/recall', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: presetId, duration: duration})
+            });
+            
+            // Update active preset
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+        
+        function saveCurrentPreset() {
+            const pan = parseFloat(document.getElementById('axisPan').value);
+            const tilt = parseFloat(document.getElementById('axisTilt').value);
+            const zoom = parseFloat(document.getElementById('axisZoom').value);
+            const slide = parseFloat(document.getElementById('axisSlide').value);
+            
+            // Convert to steps (assuming 0-1 maps to min-max limits)
+            const panSteps = Math.round(pan * 20000 - 10000); // Example conversion
+            const tiltSteps = Math.round(tilt * 20000 - 10000);
+            const zoomSteps = Math.round(zoom * 40000 - 20000);
+            const slideSteps = Math.round(slide * 20000 - 10000);
+            
+            fetch('/api/preset/set', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id: 0, // Save to preset 0
+                    pan: panSteps,
+                    tilt: tiltSteps,
+                    zoom: zoomSteps,
+                    slide: slideSteps
+                })
+            });
+        }
+        
+        function resetOffsets() {
+            document.getElementById('panOffset').value = 0;
+            document.getElementById('tiltOffset').value = 0;
+            document.getElementById('panValue').textContent = '0.00';
+            document.getElementById('tiltValue').textContent = '0.00';
+            sendPanOffset(0);
+            sendTiltOffset(0);
+        }
+        
+        function applyConfig() {
+            const panRange = parseInt(document.getElementById('panRange').value);
+            const tiltRange = parseInt(document.getElementById('tiltRange').value);
+            const panMapMin = parseInt(document.getElementById('panMapMin').value);
+            const panMapMax = parseInt(document.getElementById('panMapMax').value);
+            const tiltMapMin = parseInt(document.getElementById('tiltMapMin').value);
+            const tiltMapMax = parseInt(document.getElementById('tiltMapMax').value);
+            
+            fetch('/api/config/offset_range', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({pan_range: panRange, tilt_range: tiltRange})
+            });
+            
+            fetch('/api/config/pan_map', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({min: panMapMin, max: panMapMax})
+            });
+            
+            fetch('/api/config/tilt_map', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({min: tiltMapMin, max: tiltMapMax})
+            });
+        }
+        
+        // Initialize display values
+        document.getElementById('panValue').textContent = '0.00';
+        document.getElementById('tiltValue').textContent = '0.00';
+        document.getElementById('slideJogValue').textContent = '0.00';
+        document.getElementById('slideGotoValue').textContent = '0.50';
+        document.getElementById('axisPanValue').textContent = '0.50';
+        document.getElementById('axisTiltValue').textContent = '0.50';
+        document.getElementById('axisZoomValue').textContent = '0.50';
+        document.getElementById('axisSlideValue').textContent = '0.50';
+    </script>
+</body>
+</html>
