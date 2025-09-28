@@ -67,19 +67,19 @@ def api_status():
     """Check server status"""
     return jsonify({'status': 'ok', 'connected': True})
 
-@app.route('/api/jog', methods=['POST'])
-def api_jog():
-    """Send jog command (-1.0 to 1.0)"""
+@app.route('/api/slide/jog', methods=['POST'])
+def api_slide_jog():
+    """Send slide jog command (-1.0 to 1.0)"""
     data = request.get_json()
     value = float(data.get('value', 0.0))
     value = max(-1.0, min(1.0, value))  # Clamp to [-1, 1]
     
-    success = send_osc_message('/jog', value)
+    success = send_osc_message('/slide/jog', value)
     return jsonify({'success': success, 'value': value})
 
 @app.route('/api/pan', methods=['POST'])
 def api_pan():
-    """Send pan offset (-1.0 to 1.0)"""
+    """Send pan joystick offset (-1.0 to 1.0)"""
     data = request.get_json()
     value = float(data.get('value', 0.0))
     value = max(-1.0, min(1.0, value))  # Clamp to [-1, 1]
@@ -89,7 +89,7 @@ def api_pan():
 
 @app.route('/api/tilt', methods=['POST'])
 def api_tilt():
-    """Send tilt offset (-1.0 to 1.0)"""
+    """Send tilt joystick offset (-1.0 to 1.0)"""
     data = request.get_json()
     value = float(data.get('value', 0.0))
     value = max(-1.0, min(1.0, value))  # Clamp to [-1, 1]
@@ -97,35 +97,51 @@ def api_tilt():
     success = send_osc_message('/tilt', value)
     return jsonify({'success': success, 'value': value})
 
-@app.route('/api/preset_a', methods=['POST'])
-def api_preset_a():
-    """Set Preset A (pan, tilt, zoom, slide in steps)"""
+@app.route('/api/joystick/combined', methods=['POST'])
+def api_joystick_combined():
+    """Send combined pan/tilt joystick (-1.0 to 1.0)"""
     data = request.get_json()
-    pan = int(data.get('pan', 0))
-    tilt = int(data.get('tilt', 0))
-    zoom = int(data.get('zoom', 0))
-    slide = int(data.get('slide', 0))
+    pan = float(data.get('pan', 0.0))
+    tilt = float(data.get('tilt', 0.0))
+    pan = max(-1.0, min(1.0, pan))  # Clamp to [-1, 1]
+    tilt = max(-1.0, min(1.0, tilt))  # Clamp to [-1, 1]
     
-    success = send_osc_message('/setPresetA', pan, tilt, zoom, slide)
-    return jsonify({'success': success, 'preset': {'pan': pan, 'tilt': tilt, 'zoom': zoom, 'slide': slide}})
+    success = send_osc_message('/joy/pt', pan, tilt)
+    return jsonify({'success': success, 'pan': pan, 'tilt': tilt})
 
-@app.route('/api/preset_b', methods=['POST'])
-def api_preset_b():
-    """Set Preset B (pan, tilt, zoom, slide in steps)"""
+@app.route('/api/joystick/config', methods=['POST'])
+def api_joystick_config():
+    """Configure joystick parameters"""
     data = request.get_json()
-    pan = int(data.get('pan', 0))
-    tilt = int(data.get('tilt', 0))
-    zoom = int(data.get('zoom', 0))
-    slide = int(data.get('slide', 0))
+    deadzone = float(data.get('deadzone', 0.06))
+    expo = float(data.get('expo', 0.35))
+    slew = float(data.get('slew', 8000.0))
+    filter_hz = float(data.get('filter_hz', 60.0))
     
-    success = send_osc_message('/setPresetB', pan, tilt, zoom, slide)
-    return jsonify({'success': success, 'preset': {'pan': pan, 'tilt': tilt, 'zoom': zoom, 'slide': slide}})
+    # Clamp values to valid ranges
+    deadzone = max(0.0, min(0.5, deadzone))
+    expo = max(0.0, min(0.95, expo))
+    slew = max(0.0, slew)
+    filter_hz = max(0.0, filter_hz)
+    
+    success = send_osc_message('/joy/config', deadzone, expo, slew, filter_hz)
+    return jsonify({
+        'success': success, 
+        'deadzone': deadzone, 
+        'expo': expo, 
+        'slew': slew, 
+        'filter_hz': filter_hz
+    })
 
 @app.route('/api/stop', methods=['POST'])
 def api_stop():
     """Stop all movement"""
-    success = send_osc_message('/jog', 0.0)
-    return jsonify({'success': success})
+    # Stop slide jog
+    success1 = send_osc_message('/slide/jog', 0.0)
+    # Reset joystick offsets
+    success2 = send_osc_message('/pan', 0.0)
+    success3 = send_osc_message('/tilt', 0.0)
+    return jsonify({'success': success1 and success2 and success3})
 
 @app.route('/api/reset_offsets', methods=['POST'])
 def api_reset_offsets():

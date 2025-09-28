@@ -373,6 +373,34 @@
             <button class="btn btn-warning" onclick="applyConfig()">🔧 Apply Configuration</button>
         </div>
         
+        <!-- Joystick Configuration Panel -->
+        <div class="config-section">
+            <h4>🎮 Joystick Configuration</h4>
+            <div class="config-grid">
+                <div class="control-group">
+                    <label>Deadzone:</label>
+                    <input type="range" id="deadzone" min="0" max="0.5" step="0.01" value="0.06" oninput="updateDeadzoneValue()">
+                    <span id="deadzoneValue">0.06</span>
+                </div>
+                <div class="control-group">
+                    <label>Expo:</label>
+                    <input type="range" id="expo" min="0" max="0.95" step="0.01" value="0.35" oninput="updateExpoValue()">
+                    <span id="expoValue">0.35</span>
+                </div>
+                <div class="control-group">
+                    <label>Slew Rate:</label>
+                    <input type="range" id="slew" min="1000" max="20000" step="100" value="8000" oninput="updateSlewValue()">
+                    <span id="slewValue">8000</span>
+                </div>
+                <div class="control-group">
+                    <label>Filter Hz:</label>
+                    <input type="range" id="filterHz" min="10" max="200" step="5" value="60" oninput="updateFilterHzValue()">
+                    <span id="filterHzValue">60</span>
+                </div>
+            </div>
+            <button class="btn btn-info" onclick="applyJoystickConfig()">🎮 Apply Joystick Config</button>
+        </div>
+        
         <!-- Status -->
         <div class="status" id="status">
             Ready - Connected to ESP32
@@ -452,6 +480,53 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({value: value})
             });
+        }
+        
+        function sendJoystickCombined(pan, tilt) {
+            fetch('/api/joystick/combined', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({pan: pan, tilt: tilt})
+            });
+        }
+        
+        function configureJoystick(deadzone, expo, slew, filter_hz) {
+            fetch('/api/joystick/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    deadzone: deadzone,
+                    expo: expo,
+                    slew: slew,
+                    filter_hz: filter_hz
+                })
+            });
+        }
+        
+        function applyJoystickConfig() {
+            const deadzone = parseFloat(document.getElementById('deadzone').value);
+            const expo = parseFloat(document.getElementById('expo').value);
+            const slew = parseFloat(document.getElementById('slew').value);
+            const filterHz = parseFloat(document.getElementById('filterHz').value);
+            
+            configureJoystick(deadzone, expo, slew, filterHz);
+            updateStatus('Joystick configuration applied');
+        }
+        
+        function updateDeadzoneValue() {
+            document.getElementById('deadzoneValue').textContent = document.getElementById('deadzone').value;
+        }
+        
+        function updateExpoValue() {
+            document.getElementById('expoValue').textContent = document.getElementById('expo').value;
+        }
+        
+        function updateSlewValue() {
+            document.getElementById('slewValue').textContent = document.getElementById('slew').value;
+        }
+        
+        function updateFilterHzValue() {
+            document.getElementById('filterHzValue').textContent = document.getElementById('filterHz').value;
         }
         
         function slideGotoPosition() {
