@@ -286,9 +286,4 @@ void loop() {
                      " tstep: " + String(drivers[i]->TSTEP()));
     }
   }
-  
-  // Maintenir l'activation des drivers TMC
-  for (int i=0; i<NUM_MOTORS; i++) {
-    drivers[i]->toff(5);
-  }
 }
