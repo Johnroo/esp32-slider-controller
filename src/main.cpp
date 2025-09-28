@@ -15,6 +15,40 @@
 //==================== Configuration ====================
 #define NUM_MOTORS 4
 
+//==================== NEW: Presets, offsets, mapping ====================
+struct Preset { long p, t, z, s; };
+Preset presets[8];         // utilitaires: /preset/set i p t z s
+int activePreset = -1;
+
+// Offsets joystick (en steps)
+volatile long pan_offset_steps  = 0;
+volatile long tilt_offset_steps = 0;
+long PAN_OFFSET_RANGE  = 800;   // max offset +/- (configurable via OSC)
+long TILT_OFFSET_RANGE = 800;
+
+// Mapping linéaire slide -> compensation pan/tilt (en steps)
+long PAN_AT_SLIDE_MIN  = +800;  // ex: +800 à gauche
+long PAN_AT_SLIDE_MAX  = -800;  // ex: -800 à droite
+long TILT_AT_SLIDE_MIN = 0;
+long TILT_AT_SLIDE_MAX = 0;
+
+// Mouvement synchronisé en cours
+struct SyncMove {
+  bool  active = false;
+  uint32_t t0_ms = 0;
+  uint32_t T_ms  = 2000;      // durée demandée
+  long start[NUM_MOTORS];
+  long goal_base[NUM_MOTORS]; // cible sans offsets/couplages
+} sync_move;
+
+// Jog slide
+float slide_jog_cmd = 0.0f;    // -1..+1
+float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
+
+// Jog Pan/Tilt (vitesses de jog)
+static const float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1
+static const float TILT_JOG_SPEED = 3000.0f;
+
 // Pins STEP/DIR/EN
 const int STEP_PINS[NUM_MOTORS]    = {18, 21, 23, 26};
 const int DIR_PINS[NUM_MOTORS]     = {19, 22, 25, 27};
@@ -187,42 +221,61 @@ void coordinator_tick(){
   if (dt_ms == 0) return;
   last_ms = now;
 
-  // 1) Jog du slide (vitesse)
-  if (fabs(slide_jog_cmd) > 0.001f && !sync.active){
-    long s = steppers[3]->targetPos(); // utilise la cible courante
-    double ds = slide_jog_cmd * SLIDE_JOG_SPEED * (dt_ms/1000.0);
-    long goal = clampL(s + (long)lround(ds), cfg[3].min_limit, cfg[3].max_limit);
-    steppers[3]->moveTo(goal);
+  // 1) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
+  if (!sync_move.active){
+    float dt = dt_ms / 1000.0f;
+    
+    // Jog Pan
+    if (fabs(joy_filt.pan) > 0.001f) {
+      long p = steppers[0]->targetPos();
+      p = clampL(p + (long)lround(joy_filt.pan * PAN_JOG_SPEED * dt), cfg[0].min_limit, cfg[0].max_limit);
+      steppers[0]->moveTo(p);
+    }
+    
+    // Jog Tilt
+    if (fabs(joy_filt.tilt) > 0.001f) {
+      long t = steppers[1]->targetPos();
+      t = clampL(t + (long)lround(joy_filt.tilt * TILT_JOG_SPEED * dt), cfg[1].min_limit, cfg[1].max_limit);
+      steppers[1]->moveTo(t);
+    }
+    
+    // Jog Slide
+    if (fabs(slide_jog_cmd) > 0.001f){
+      long s = steppers[3]->targetPos();
+      double ds = slide_jog_cmd * SLIDE_JOG_SPEED * dt;
+      long goal = clampL(s + (long)lround(ds), cfg[3].min_limit, cfg[3].max_limit);
+      steppers[3]->moveTo(goal);
+    }
   }
 
   // 2) Mouvement synchronisé
-  if (sync.active){
-    float tau = (float)(now - sync.t0_ms) / (float)sync.T_ms;
+  if (sync_move.active){
+    float tau = (float)(now - sync_move.t0_ms) / (float)sync_move.T_ms;
     if (tau >= 1.0f){
       // Fin de mouvement
-      sync.active = false;
+      sync_move.active = false;
       tau = 1.0f;
     }
     float s = s_minjerk(tau);
 
     // Slide de référence (pour couplage)
-    long slide_ref = (long)lround( sync.start[3] + (sync.goal_base[3] - sync.start[3]) * s );
+    long slide_ref = (long)lround( sync_move.start[3] + (sync_move.goal_base[3] - sync_move.start[3]) * s );
     slide_ref = clampL(slide_ref, cfg[3].min_limit, cfg[3].max_limit);
 
     // Compensations en fonction du slide + offsets joystick (toujours actifs)
     long pan_comp  = pan_comp_from_slide(slide_ref);
     long tilt_comp = tilt_comp_from_slide(slide_ref);
 
-    long pan_goal  = sync.goal_base[0] + pan_comp + pan_offset_steps;
-    long tilt_goal = sync.goal_base[1] + tilt_comp + tilt_offset_steps;
-    long zoom_goal = sync.goal_base[2];
-    long slide_goal= sync.goal_base[3];
+    long pan_goal  = sync_move.goal_base[0] + pan_comp + pan_offset_steps;
+    long tilt_goal = sync_move.goal_base[1] + tilt_comp + tilt_offset_steps;
+    long zoom_goal = sync_move.goal_base[2];
+    long slide_goal= sync_move.goal_base[3];
 
     // Cibles "à l'instant" suivant s(t)
-    long P = (long)lround( sync.start[0] + (pan_goal  - sync.start[0]) * s );
-    long T = (long)lround( sync.start[1] + (tilt_goal - sync.start[1]) * s );
-    long Z = (long)lround( sync.start[2] + (zoom_goal - sync.start[2]) * s );
-    long S = (long)lround( sync.start[3] + (slide_goal- sync.start[3]) * s );
+    long P = (long)lround( sync_move.start[0] + (pan_goal  - sync_move.start[0]) * s );
+    long T = (long)lround( sync_move.start[1] + (tilt_goal - sync_move.start[1]) * s );
+    long Z = (long)lround( sync_move.start[2] + (zoom_goal - sync_move.start[2]) * s );
+    long S = (long)lround( sync_move.start[3] + (slide_goal- sync_move.start[3]) * s );
 
     // Clip limites
     P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
@@ -237,36 +290,6 @@ void coordinator_tick(){
     steppers[3]->moveTo(S);
   }
 }
-
-//==================== NEW: Presets, offsets, mapping ====================
-struct Preset { long p, t, z, s; };
-Preset presets[8];         // utilitaires: /preset/set i p t z s
-int activePreset = -1;
-
-// Offsets joystick (en steps)
-volatile long pan_offset_steps  = 0;
-volatile long tilt_offset_steps = 0;
-long PAN_OFFSET_RANGE  = 800;   // max offset +/- (configurable via OSC)
-long TILT_OFFSET_RANGE = 800;
-
-// Mapping linéaire slide -> compensation pan/tilt (en steps)
-long PAN_AT_SLIDE_MIN  = +800;  // ex: +800 à gauche
-long PAN_AT_SLIDE_MAX  = -800;  // ex: -800 à droite
-long TILT_AT_SLIDE_MIN = 0;
-long TILT_AT_SLIDE_MAX = 0;
-
-// Mouvement synchronisé en cours
-struct SyncMove {
-  bool  active = false;
-  uint32_t t0_ms = 0;
-  uint32_t T_ms  = 2000;      // durée demandée
-  long start[NUM_MOTORS];
-  long goal_base[NUM_MOTORS]; // cible sans offsets/couplages
-} sync;
-
-// Jog slide
-float slide_jog_cmd = 0.0f;    // -1..+1
-float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
 
 //==================== Variables globales ====================
 long panPos = 0;
@@ -386,14 +409,14 @@ void processOSC() {
         // base goals = preset brut (sans offsets/couplage)
         long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
         for(int ax=0; ax<NUM_MOTORS; ++ax){
-          sync.start[ax]     = steppers[ax]->getCurrentPosition();
-          sync.goal_base[ax] = clampL(base_goal[ax], cfg[ax].min_limit, cfg[ax].max_limit);
+          sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
+          sync_move.goal_base[ax] = clampL(base_goal[ax], cfg[ax].min_limit, cfg[ax].max_limit);
         }
         uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
-        sync.T_ms = pick_duration_ms_for_deltas(sync.start, sync.goal_base, Tms_req);
-        sync.t0_ms = millis();
-        sync.active = true;
-        Serial.printf("Recall preset %d in %u ms\n", i, sync.T_ms);
+        sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
+        sync_move.t0_ms = millis();
+        sync_move.active = true;
+        Serial.printf("Recall preset %d in %u ms\n", i, sync_move.T_ms);
       });
 
       // Note: /pan, /tilt, /slide/jog sont déjà gérés plus haut dans le pipeline joystick
@@ -406,13 +429,13 @@ void processOSC() {
         long s_goal = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, u));
         // Construire un "preset" ad-hoc qui ne bouge que le slide
         for(int ax=0; ax<NUM_MOTORS; ++ax){
-          sync.start[ax]     = steppers[ax]->getCurrentPosition();
-          sync.goal_base[ax] = (ax==3) ? s_goal : sync.start[ax];
+          sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
+          sync_move.goal_base[ax] = (ax==3) ? s_goal : sync_move.start[ax];
         }
         uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
-        sync.T_ms = pick_duration_ms_for_deltas(sync.start, sync.goal_base, Tms_req);
-        sync.t0_ms = millis();
-        sync.active = true;
+        sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
+        sync_move.t0_ms = millis();
+        sync_move.active = true;
       });
 
       // Config: ranges offsets et mapping slide->pan/tilt
@@ -519,7 +542,7 @@ void loop() {
   static unsigned long osc_log = 0;
   if (millis() - tlog > 500) {
     tlog = millis();
-    String s = "t=" + String(millis()/1000.0, 2) + " jog=" + String(jogCmd, 2) +
+    String s = "t=" + String(millis()/1000.0, 2) + " jog=" + String(slide_jog_cmd, 2) +
                " | P:" + String(panPos) + " T:" + String(tiltPos) +
                " Z:" + String(zoomPos) + " S:" + String(slidePos);
     Serial.println(s);

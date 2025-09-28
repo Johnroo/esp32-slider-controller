@@ -18,27 +18,28 @@ OSC_HOST = "192.168.1.22"  # ESP32 IP address (esproo.local)
 OSC_PORT = 8000
 
 # OSC Message Builder
+def pad_osc_string(s: str) -> bytes:
+    b = s.encode('utf-8') + b'\x00'              # toujours 1 nul de fin
+    pad = (4 - (len(b) % 4)) % 4                 # puis padding à /4
+    return b + (b'\x00' * pad)
+
 def create_osc_message(address, *args):
-    """Create an OSC message packet"""
-    # OSC address pattern
-    address_bytes = address.encode('utf-8')
-    address_padding = (4 - (len(address_bytes) % 4)) % 4
-    address_data = address_bytes + b'\x00' * address_padding
-    
-    # Type tag string
-    type_tags = ',' + ''.join(['f' if isinstance(arg, float) else 'i' for arg in args])
-    type_tag_bytes = type_tags.encode('utf-8')
-    type_tag_padding = (4 - (len(type_tag_bytes) % 4)) % 4
-    type_tag_data = type_tag_bytes + b'\x00' * type_tag_padding
-    
-    # Arguments
+    # Adresse
+    address_data = pad_osc_string(address)
+
+    # Type tag (commence par ',')
+    tags = ',' + ''.join('f' if isinstance(a, float) else 'i' for a in args)
+    type_tag_data = pad_osc_string(tags)
+
+    # Arguments (big-endian)
+    import struct
     args_data = b''
-    for arg in args:
-        if isinstance(arg, float):
-            args_data += struct.pack('>f', arg)
+    for a in args:
+        if isinstance(a, float):
+            args_data += struct.pack('>f', a)
         else:
-            args_data += struct.pack('>i', int(arg))
-    
+            args_data += struct.pack('>i', int(a))
+
     return address_data + type_tag_data + args_data
 
 def send_osc_message(address, *args):
