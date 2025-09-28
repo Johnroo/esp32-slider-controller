@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Slider Controller</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .control-panel {
+            background: #fff;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+        }
+
+        .control-panel h3 {
+            color: #495057;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            text-align: center;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        .slider-container {
+            margin-bottom: 20px;
+        }
+
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+        }
+
+        .value-display {
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #007bff;
+            margin-top: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #1e7e34;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .preset-controls {
+            grid-column: 1 / -1;
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .preset-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+        }
+
+        .preset-panel h4 {
+            color: #495057;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .preset-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .preset-input {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .preset-input label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .preset-input input {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+        }
+
+        .status-connected {
+            background: #28a745;
+        }
+
+        .status-disconnected {
+            background: #dc3545;
+        }
+
+        @media (max-width: 768px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .preset-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .preset-inputs {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">
+        Connecting...
+    </div>
+
+    <div class="container">
+        <h1>🎬 ESP32 Slider Controller</h1>
+        
+        <div class="status">
+            <strong>Status:</strong> <span id="statusText">Ready to control your slider</span>
+        </div>
+
+        <div class="controls-grid">
+            <!-- Jog Control -->
+            <div class="control-panel">
+                <h3>🎮 Jog Control</h3>
+                <div class="slider-container">
+                    <label for="jogSlider">Movement Speed (-1.0 to 1.0)</label>
+                    <input type="range" id="jogSlider" class="slider" min="-1" max="1" step="0.01" value="0">
+                    <div class="value-display" id="jogValue">0.00</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-danger" onclick="stopMovement()">🛑 Stop</button>
+                </div>
+            </div>
+
+            <!-- Pan Control -->
+            <div class="control-panel">
+                <h3>↔️ Pan Control</h3>
+                <div class="slider-container">
+                    <label for="panSlider">Pan Offset (-1.0 to 1.0)</label>
+                    <input type="range" id="panSlider" class="slider" min="-1" max="1" step="0.01" value="0">
+                    <div class="value-display" id="panValue">0.00</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="resetPan()">🔄 Reset</button>
+                </div>
+            </div>
+
+            <!-- Tilt Control -->
+            <div class="control-panel">
+                <h3>↕️ Tilt Control</h3>
+                <div class="slider-container">
+                    <label for="tiltSlider">Tilt Offset (-1.0 to 1.0)</label>
+                    <input type="range" id="tiltSlider" class="slider" min="-1" max="1" step="0.01" value="0">
+                    <div class="value-display" id="tiltValue">0.00</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="resetTilt()">🔄 Reset</button>
+                </div>
+            </div>
+
+            <!-- Direct Axis Control -->
+            <div class="control-panel">
+                <h3>🎯 Pan Direct</h3>
+                <div class="slider-container">
+                    <label for="axisPanSlider">Pan Position (0.0 to 1.0)</label>
+                    <input type="range" id="axisPanSlider" class="slider" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisPanValue">0.50</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="resetAxisPan()">🔄 Center</button>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <h3>🎯 Tilt Direct</h3>
+                <div class="slider-container">
+                    <label for="axisTiltSlider">Tilt Position (0.0 to 1.0)</label>
+                    <input type="range" id="axisTiltSlider" class="slider" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisTiltValue">0.50</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="resetAxisTilt()">🔄 Center</button>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <h3>🎯 Zoom Direct</h3>
+                <div class="slider-container">
+                    <label for="axisZoomSlider">Zoom Position (0.0 to 1.0)</label>
+                    <input type="range" id="axisZoomSlider" class="slider" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisZoomValue">0.50</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="resetAxisZoom()">🔄 Center</button>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <h3>🎯 Slide Direct</h3>
+                <div class="slider-container">
+                    <label for="axisSlideSlider">Slide Position (0.0 to 1.0)</label>
+                    <input type="range" id="axisSlideSlider" class="slider" min="0" max="1" step="0.01" value="0.5">
+                    <div class="value-display" id="axisSlideValue">0.50</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="resetAxisSlide()">🔄 Center</button>
+                </div>
+            </div>
+
+            <!-- Preset Controls -->
+            <div class="control-panel preset-controls">
+                <h3>📍 Preset Management</h3>
+                <div class="preset-grid">
+                    <div class="preset-panel">
+                        <h4>Preset A</h4>
+                        <div class="preset-inputs">
+                            <div class="preset-input">
+                                <label>Pan (steps)</label>
+                                <input type="number" id="presetA_pan" value="0">
+                            </div>
+                            <div class="preset-input">
+                                <label>Tilt (steps)</label>
+                                <input type="number" id="presetA_tilt" value="0">
+                            </div>
+                            <div class="preset-input">
+                                <label>Zoom (steps)</label>
+                                <input type="number" id="presetA_zoom" value="0">
+                            </div>
+                            <div class="preset-input">
+                                <label>Slide (steps)</label>
+                                <input type="number" id="presetA_slide" value="0">
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="setPresetA()">Set Preset A</button>
+                        </div>
+                    </div>
+
+                    <div class="preset-panel">
+                        <h4>Preset B</h4>
+                        <div class="preset-inputs">
+                            <div class="preset-input">
+                                <label>Pan (steps)</label>
+                                <input type="number" id="presetB_pan" value="0">
+                            </div>
+                            <div class="preset-input">
+                                <label>Tilt (steps)</label>
+                                <input type="number" id="presetB_tilt" value="0">
+                            </div>
+                            <div class="preset-input">
+                                <label>Zoom (steps)</label>
+                                <input type="number" id="presetB_zoom" value="0">
+                            </div>
+                            <div class="preset-input">
+                                <label>Slide (steps)</label>
+                                <input type="number" id="presetB_slide" value="0">
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="setPresetB()">Set Preset B</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="button-group" style="margin-top: 20px;">
+                    <button class="btn btn-danger" onclick="resetAllAxes()">🔄 Reset All Axes to Center</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let isConnected = false;
+        let lastJogValue = 0;
+
+        // Initialize the interface
+        document.addEventListener('DOMContentLoaded', function() {
+            setupSliders();
+            checkConnection();
+            updateConnectionStatus();
+        });
+
+        function setupSliders() {
+            // Jog slider
+            const jogSlider = document.getElementById('jogSlider');
+            const jogValue = document.getElementById('jogValue');
+            
+            jogSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                jogValue.textContent = value.toFixed(2);
+                sendJogCommand(value);
+            });
+
+            // Pan slider
+            const panSlider = document.getElementById('panSlider');
+            const panValue = document.getElementById('panValue');
+            
+            panSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                panValue.textContent = value.toFixed(2);
+                sendPanCommand(value);
+            });
+
+            // Tilt slider
+            const tiltSlider = document.getElementById('tiltSlider');
+            const tiltValue = document.getElementById('tiltValue');
+            
+            tiltSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                tiltValue.textContent = value.toFixed(2);
+                sendTiltCommand(value);
+            });
+
+            // Direct axis sliders
+            const axisPanSlider = document.getElementById('axisPanSlider');
+            const axisPanValue = document.getElementById('axisPanValue');
+            
+            axisPanSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                axisPanValue.textContent = value.toFixed(2);
+                sendAxisPanCommand(value);
+            });
+
+            const axisTiltSlider = document.getElementById('axisTiltSlider');
+            const axisTiltValue = document.getElementById('axisTiltValue');
+            
+            axisTiltSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                axisTiltValue.textContent = value.toFixed(2);
+                sendAxisTiltCommand(value);
+            });
+
+            const axisZoomSlider = document.getElementById('axisZoomSlider');
+            const axisZoomValue = document.getElementById('axisZoomValue');
+            
+            axisZoomSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                axisZoomValue.textContent = value.toFixed(2);
+                sendAxisZoomCommand(value);
+            });
+
+            const axisSlideSlider = document.getElementById('axisSlideSlider');
+            const axisSlideValue = document.getElementById('axisSlideValue');
+            
+            axisSlideSlider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                axisSlideValue.textContent = value.toFixed(2);
+                sendAxisSlideCommand(value);
+            });
+        }
+
+        // API Functions
+        async function sendJogCommand(value) {
+            try {
+                const response = await fetch('/api/jog', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Jog: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Jog command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function sendPanCommand(value) {
+            try {
+                const response = await fetch('/api/pan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Pan: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Pan command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function sendTiltCommand(value) {
+            try {
+                const response = await fetch('/api/tilt', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Tilt: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Tilt command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function setPresetA() {
+            const pan = parseInt(document.getElementById('presetA_pan').value);
+            const tilt = parseInt(document.getElementById('presetA_tilt').value);
+            const zoom = parseInt(document.getElementById('presetA_zoom').value);
+            const slide = parseInt(document.getElementById('presetA_slide').value);
+
+            try {
+                const response = await fetch('/api/preset_a', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({pan, tilt, zoom, slide})
+                });
+                const result = await response.json();
+                updateStatus(`Preset A set: P${pan} T${tilt} Z${zoom} S${slide}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Preset A command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function setPresetB() {
+            const pan = parseInt(document.getElementById('presetB_pan').value);
+            const tilt = parseInt(document.getElementById('presetB_tilt').value);
+            const zoom = parseInt(document.getElementById('presetB_zoom').value);
+            const slide = parseInt(document.getElementById('presetB_slide').value);
+
+            try {
+                const response = await fetch('/api/preset_b', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({pan, tilt, zoom, slide})
+                });
+                const result = await response.json();
+                updateStatus(`Preset B set: P${pan} T${tilt} Z${zoom} S${slide}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Preset B command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function stopMovement() {
+            try {
+                const response = await fetch('/api/stop', {method: 'POST'});
+                const result = await response.json();
+                document.getElementById('jogSlider').value = 0;
+                document.getElementById('jogValue').textContent = '0.00';
+                updateStatus('Movement stopped');
+                isConnected = true;
+            } catch (error) {
+                console.error('Stop command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function resetPan() {
+            document.getElementById('panSlider').value = 0;
+            document.getElementById('panValue').textContent = '0.00';
+            await sendPanCommand(0);
+        }
+
+        async function resetTilt() {
+            document.getElementById('tiltSlider').value = 0;
+            document.getElementById('tiltValue').textContent = '0.00';
+            await sendTiltCommand(0);
+        }
+
+        // Direct axis API functions
+        async function sendAxisPanCommand(value) {
+            try {
+                const response = await fetch('/api/axis_pan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Pan Axis: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Pan axis command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function sendAxisTiltCommand(value) {
+            try {
+                const response = await fetch('/api/axis_tilt', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Tilt Axis: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Tilt axis command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function sendAxisZoomCommand(value) {
+            try {
+                const response = await fetch('/api/axis_zoom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Zoom Axis: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Zoom axis command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function sendAxisSlideCommand(value) {
+            try {
+                const response = await fetch('/api/axis_slide', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
+                const result = await response.json();
+                updateStatus(`Slide Axis: ${value.toFixed(2)}`);
+                isConnected = true;
+            } catch (error) {
+                console.error('Slide axis command failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        // Reset functions for direct axes
+        async function resetAxisPan() {
+            document.getElementById('axisPanSlider').value = 0.5;
+            document.getElementById('axisPanValue').textContent = '0.50';
+            await sendAxisPanCommand(0.5);
+        }
+
+        async function resetAxisTilt() {
+            document.getElementById('axisTiltSlider').value = 0.5;
+            document.getElementById('axisTiltValue').textContent = '0.50';
+            await sendAxisTiltCommand(0.5);
+        }
+
+        async function resetAxisZoom() {
+            document.getElementById('axisZoomSlider').value = 0.5;
+            document.getElementById('axisZoomValue').textContent = '0.50';
+            await sendAxisZoomCommand(0.5);
+        }
+
+        async function resetAxisSlide() {
+            document.getElementById('axisSlideSlider').value = 0.5;
+            document.getElementById('axisSlideValue').textContent = '0.50';
+            await sendAxisSlideCommand(0.5);
+        }
+
+        async function resetAllAxes() {
+            try {
+                const response = await fetch('/api/reset_all_axes', {method: 'POST'});
+                const result = await response.json();
+                
+                // Reset all sliders to center
+                document.getElementById('axisPanSlider').value = 0.5;
+                document.getElementById('axisPanValue').textContent = '0.50';
+                document.getElementById('axisTiltSlider').value = 0.5;
+                document.getElementById('axisTiltValue').textContent = '0.50';
+                document.getElementById('axisZoomSlider').value = 0.5;
+                document.getElementById('axisZoomValue').textContent = '0.50';
+                document.getElementById('axisSlideSlider').value = 0.5;
+                document.getElementById('axisSlideValue').textContent = '0.50';
+                
+                updateStatus('All axes reset to center');
+                isConnected = true;
+            } catch (error) {
+                console.error('Reset all axes failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        async function checkConnection() {
+            try {
+                const response = await fetch('/api/status', {method: 'GET'});
+                if (response.ok) {
+                    isConnected = true;
+                } else {
+                    isConnected = false;
+                }
+            } catch (error) {
+                console.error('Connection test failed:', error);
+                isConnected = false;
+            }
+            updateConnectionStatus();
+        }
+
+        function updateStatus(message) {
+            document.getElementById('statusText').textContent = message;
+        }
+
+        function updateConnectionStatus() {
+            const status = document.getElementById('connectionStatus');
+            if (isConnected) {
+                status.textContent = '🟢 Connected';
+                status.className = 'connection-status status-connected';
+            } else {
+                status.textContent = '🔴 Disconnected';
+                status.className = 'connection-status status-disconnected';
+            }
+        }
+    </script>
+</body>
+</html>
