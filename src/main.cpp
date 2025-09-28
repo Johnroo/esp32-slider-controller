@@ -222,10 +222,11 @@ void setup() {
     if (steppers[i]) {
       Serial.println("✅ Stepper " + String(i) + " connected to pin " + String(STEP_PINS[i]));
       steppers[i]->setDirectionPin(DIR_PINS[i]);
-      steppers[i]->setEnablePin(ENABLE_PINS[i], false);  // Active manuellement les moteurs (false = activé)
-      steppers[i]->setAutoEnable(false);  // Désactive l'auto-disable
+      steppers[i]->setEnablePin(ENABLE_PINS[i], true);   // true = active LOW pour TMC2209
+      steppers[i]->setAutoEnable(false);                 // Garde les moteurs alimentés
       steppers[i]->setSpeedInHz(cfg[i].max_speed);
       steppers[i]->setAcceleration(cfg[i].max_accel);
+      steppers[i]->enableOutputs();                      // Force l'activation maintenant
       Serial.println("✅ Stepper " + String(i) + " configured");
     } else {
       Serial.println("❌ Failed to connect stepper " + String(i));
