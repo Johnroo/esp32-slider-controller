@@ -95,6 +95,59 @@ static inline float s_minjerk(float tau){
   return 10*tau*tau*tau - 15*tau*tau*tau*tau + 6*tau*tau*tau*tau*tau;
 }
 
+//==================== NEW: Joystick Pipeline ====================
+struct JoyCfg { 
+  float deadzone=0.06f, expo=0.35f, slew_per_s=8000.0f, filt_hz=60.0f; 
+} joy;
+
+struct JoyState { 
+  float pan=0, tilt=0, slide=0; 
+};
+
+volatile JoyState joy_raw;  // alimenté par l'OSC
+static   JoyState joy_cmd, joy_filt;
+
+static inline float apply_deadzone_expo(float x, float dz, float expo){
+  x = clampF(x, -1.f, 1.f); 
+  if (fabsf(x) <= dz) return 0.f;
+  float s = x >= 0 ? 1.f : -1.f, u = (fabsf(x) - dz) / (1.f - dz);
+  return s * ((1-expo) * u + expo * u * u * u);
+}
+
+static inline float iir_1pole(float y, float x, float f, float dt){ 
+  if(f <= 0) return x; 
+  float a = 1.f - expf(-2.f * 3.1415926f * f * dt); 
+  return y + a * (x - y); 
+}
+
+static inline float slew_limit(float y, float x, float slew, float dt){
+  if (slew <= 0) return x; 
+  float d = x - y, m = slew * dt;
+  if (d > m) d = m; 
+  if (d < -m) d = -m; 
+  return y + d;
+}
+
+void joystick_tick(){
+  static uint32_t t0 = millis(); 
+  uint32_t now = millis(); 
+  float dt = (now - t0) * 0.001f; 
+  if(dt <= 0) return; 
+  t0 = now;
+  
+  joy_cmd.pan   = apply_deadzone_expo(joy_raw.pan,  joy.deadzone, joy.expo);
+  joy_cmd.tilt  = apply_deadzone_expo(joy_raw.tilt, joy.deadzone, joy.expo);
+  joy_cmd.slide = apply_deadzone_expo(joy_raw.slide, joy.deadzone, joy.expo);
+
+  joy_filt.pan   = slew_limit(joy_filt.pan,   iir_1pole(joy_filt.pan,   joy_cmd.pan,   joy.filt_hz, dt), joy.slew_per_s/(float)PAN_OFFSET_RANGE, dt);
+  joy_filt.tilt  = slew_limit(joy_filt.tilt,  iir_1pole(joy_filt.tilt,  joy_cmd.tilt,  joy.filt_hz, dt), joy.slew_per_s/(float)TILT_OFFSET_RANGE, dt);
+  joy_filt.slide = slew_limit(joy_filt.slide, iir_1pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), 1.0f, dt);
+
+  pan_offset_steps  = (long)lroundf(joy_filt.pan  * (float)PAN_OFFSET_RANGE);
+  tilt_offset_steps = (long)lroundf(joy_filt.tilt * (float)TILT_OFFSET_RANGE);
+  slide_jog_cmd     = clampF(joy_filt.slide, -1.f, +1.f);
+}
+
 //==================== NEW: Planificateur "temps commun" ====================
 uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long goal[NUM_MOTORS], uint32_t T_req_ms){
   double T = T_req_ms / 1000.0;
@@ -185,16 +238,6 @@ void coordinator_tick(){
   }
 }
 
-//==================== Variables globales ====================
-float jogCmd = 0.0f;
-float panOffsetCmd = 0.0f;
-float tiltOffsetCmd = 0.0f;
-
-long panPos = 0;
-long tiltPos = 0;
-long zoomPos = 0;
-long slidePos = 0;
-
 //==================== NEW: Presets, offsets, mapping ====================
 struct Preset { long p, t, z, s; };
 Preset presets[8];         // utilitaires: /preset/set i p t z s
@@ -224,6 +267,12 @@ struct SyncMove {
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
+
+//==================== Variables globales ====================
+long panPos = 0;
+long tiltPos = 0;
+long zoomPos = 0;
+long slidePos = 0;
 
 //==================== OSC ====================
 WiFiUDP udp;
@@ -260,26 +309,31 @@ void processOSC() {
     
     if (!msg.hasError()) {
       // Traitement des messages OSC
-      msg.dispatch("/jog", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
-        jogCmd = constrain(value, -1.0f, 1.0f);
-        Serial.println("Jog: " + String(jogCmd));
+      // Joystick en OSC (-1..+1)
+      msg.dispatch("/pan", [](OSCMessage &m){ 
+        joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f); 
+      });
+      msg.dispatch("/tilt", [](OSCMessage &m){ 
+        joy_raw.tilt = clampF(m.getFloat(0), -1.f, +1.f); 
+      });
+      msg.dispatch("/joy/pt", [](OSCMessage &m){ 
+        joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f);
+        joy_raw.tilt = clampF(m.getFloat(1), -1.f, +1.f); 
+      });
+      msg.dispatch("/slide/jog", [](OSCMessage &m){ 
+        joy_raw.slide = clampF(m.getFloat(0), -1.f, +1.f); 
       });
       
-      msg.dispatch("/pan", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
-        panOffsetCmd = constrain(value, -1.0f, 1.0f);
-        Serial.println("Pan: " + String(panOffsetCmd));
-      });
-      
-      msg.dispatch("/tilt", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
-        tiltOffsetCmd = constrain(value, -1.0f, 1.0f);
-        Serial.println("Tilt: " + String(tiltOffsetCmd));
+      // Optionnel: réglages runtime
+      msg.dispatch("/joy/config", [](OSCMessage &m){
+        if (m.size() > 0) joy.deadzone = clampF(m.getFloat(0), 0.f, 0.5f);
+        if (m.size() > 1) joy.expo = clampF(m.getFloat(1), 0.f, 0.95f);
+        if (m.size() > 2) joy.slew_per_s = fabsf(m.getFloat(2));
+        if (m.size() > 3) joy.filt_hz = fabsf(m.getFloat(3));
       });
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
+        float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[0].max_limit - cfg[0].min_limit) + cfg[0].min_limit);
         Serial.println("🔧 Moving Pan to: " + String(pos_val));
         steppers[0]->moveTo(pos_val);
@@ -288,7 +342,7 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_tilt", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
+        float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[1].max_limit - cfg[1].min_limit) + cfg[1].min_limit);
         Serial.println("🔧 Moving Tilt to: " + String(pos_val));
         steppers[1]->moveTo(pos_val);
@@ -297,7 +351,7 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_zoom", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
+        float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[2].max_limit - cfg[2].min_limit) + cfg[2].min_limit);
         Serial.println("🔧 Moving Zoom to: " + String(pos_val));
         steppers[2]->moveTo(pos_val);
@@ -306,7 +360,7 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_slide", [](OSCMessage &msg) {
-        float value = msg.getFloat(0);
+        float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[3].max_limit - cfg[3].min_limit) + cfg[3].min_limit);
         Serial.println("🔧 Moving Slide to: " + String(pos_val));
         steppers[3]->moveTo(pos_val);
@@ -342,20 +396,7 @@ void processOSC() {
         Serial.printf("Recall preset %d in %u ms\n", i, sync.T_ms);
       });
 
-      // Offsets joystick (float -1..+1) -> steps, toujours actifs
-      msg.dispatch("/pan", [](OSCMessage &m){
-        float u = clampF(m.getFloat(0), -1.0f, 1.0f);
-        pan_offset_steps = (long)lround(u * PAN_OFFSET_RANGE);
-      });
-      msg.dispatch("/tilt", [](OSCMessage &m){
-        float u = clampF(m.getFloat(0), -1.0f, 1.0f);
-        tilt_offset_steps = (long)lround(u * TILT_OFFSET_RANGE);
-      });
-
-      // Slide: jog vitesse (-1..+1)
-      msg.dispatch("/slide/jog", [](OSCMessage &m){
-        slide_jog_cmd = clampF(m.getFloat(0), -1.0f, 1.0f);
-      });
+      // Note: /pan, /tilt, /slide/jog sont déjà gérés plus haut dans le pipeline joystick
 
       // Slide: goto [0..1] en T sec (déplacement temps imposé)
       msg.dispatch("/slide/goto", [](OSCMessage &m){
@@ -461,6 +502,7 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
   processOSC();
+  joystick_tick();     // NEW: Pipeline joystick avec lissage
   coordinator_tick();  // NEW: Orchestrateur de mouvements synchronisés
   
   // FastAccelStepper n'a pas besoin de engine.run()
