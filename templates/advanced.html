@@ -267,7 +267,7 @@
                 
                 <div class="control-group">
                     <label>Duration (seconds):</label>
-                    <input type="number" id="presetDuration" value="2.0" min="0.1" max="10.0" step="0.1">
+                    <input type="number" id="presetDuration" value="2.0" min="0.1" max="200.0" step="0.1">
                 </div>
                 
                 <button class="btn btn-success" onclick="saveCurrentPreset()">💾 Save Current Position</button>
@@ -307,7 +307,7 @@
                 </div>
                 
                 <div class="input-group">
-                    <input type="number" id="slideDuration" value="2.0" min="0.1" max="10.0" step="0.1" placeholder="Duration">
+                    <input type="number" id="slideDuration" value="2.0" min="0.1" max="200.0" step="0.1" placeholder="Duration">
                     <button class="btn" onclick="slideGotoPosition()">🚀 Go to Position</button>
                 </div>
             </div>
@@ -396,6 +396,16 @@
                     <label>Filter Hz:</label>
                     <input type="range" id="filterHz" min="10" max="200" step="5" value="60" oninput="updateFilterHzValue()">
                     <span id="filterHzValue">60</span>
+                </div>
+                <div class="control-group">
+                    <label>Pan/Tilt Speed:</label>
+                    <input type="range" id="panTiltSpeed" min="0.1" max="3.0" step="0.1" value="1.0" oninput="updatePanTiltSpeedValue()">
+                    <span id="panTiltSpeedValue">1.0x</span>
+                </div>
+                <div class="control-group">
+                    <label>Slide Speed:</label>
+                    <input type="range" id="slideSpeed" min="0.1" max="3.0" step="0.1" value="1.0" oninput="updateSlideSpeedValue()">
+                    <span id="slideSpeedValue">1.0x</span>
                 </div>
             </div>
             <button class="btn btn-info" onclick="applyJoystickConfig()">🎮 Apply Joystick Config</button>
@@ -490,7 +500,7 @@
             });
         }
         
-        function configureJoystick(deadzone, expo, slew, filter_hz) {
+        function configureJoystick(deadzone, expo, slew, filter_hz, pan_tilt_speed, slide_speed) {
             fetch('/api/joystick/config', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -498,7 +508,9 @@
                     deadzone: deadzone,
                     expo: expo,
                     slew: slew,
-                    filter_hz: filter_hz
+                    filter_hz: filter_hz,
+                    pan_tilt_speed: pan_tilt_speed,
+                    slide_speed: slide_speed
                 })
             });
         }
@@ -508,8 +520,10 @@
             const expo = parseFloat(document.getElementById('expo').value);
             const slew = parseFloat(document.getElementById('slew').value);
             const filterHz = parseFloat(document.getElementById('filterHz').value);
+            const panTiltSpeed = parseFloat(document.getElementById('panTiltSpeed').value);
+            const slideSpeed = parseFloat(document.getElementById('slideSpeed').value);
             
-            configureJoystick(deadzone, expo, slew, filterHz);
+            configureJoystick(deadzone, expo, slew, filterHz, panTiltSpeed, slideSpeed);
             updateStatus('Joystick configuration applied');
         }
         
@@ -527,6 +541,16 @@
         
         function updateFilterHzValue() {
             document.getElementById('filterHzValue').textContent = document.getElementById('filterHz').value;
+        }
+        
+        function updatePanTiltSpeedValue() {
+            const value = document.getElementById('panTiltSpeed').value;
+            document.getElementById('panTiltSpeedValue').textContent = value + 'x';
+        }
+        
+        function updateSlideSpeedValue() {
+            const value = document.getElementById('slideSpeed').value;
+            document.getElementById('slideSpeedValue').textContent = value + 'x';
         }
         
         function slideGotoPosition() {

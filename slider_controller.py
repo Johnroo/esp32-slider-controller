@@ -118,20 +118,26 @@ def api_joystick_config():
     expo = float(data.get('expo', 0.35))
     slew = float(data.get('slew', 8000.0))
     filter_hz = float(data.get('filter_hz', 60.0))
+    pan_tilt_speed = float(data.get('pan_tilt_speed', 1.0))
+    slide_speed = float(data.get('slide_speed', 1.0))
     
     # Clamp values to valid ranges
     deadzone = max(0.0, min(0.5, deadzone))
     expo = max(0.0, min(0.95, expo))
     slew = max(0.0, slew)
     filter_hz = max(0.0, filter_hz)
+    pan_tilt_speed = max(0.1, min(3.0, pan_tilt_speed))
+    slide_speed = max(0.1, min(3.0, slide_speed))
     
-    success = send_osc_message('/joy/config', deadzone, expo, slew, filter_hz)
+    success = send_osc_message('/joy/config', deadzone, expo, slew, filter_hz, pan_tilt_speed, slide_speed)
     return jsonify({
         'success': success, 
         'deadzone': deadzone, 
         'expo': expo, 
         'slew': slew, 
-        'filter_hz': filter_hz
+        'filter_hz': filter_hz,
+        'pan_tilt_speed': pan_tilt_speed,
+        'slide_speed': slide_speed
     })
 
 @app.route('/api/stop', methods=['POST'])

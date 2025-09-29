@@ -45,9 +45,9 @@ struct SyncMove {
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
 
-// Jog Pan/Tilt (vitesses de jog)
-static const float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1
-static const float TILT_JOG_SPEED = 3000.0f;
+// Jog Pan/Tilt (vitesses de jog) - dérivées de la config
+float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
+float TILT_JOG_SPEED = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
 
 // Pins STEP/DIR/EN
 const int STEP_PINS[NUM_MOTORS]    = {18, 21, 23, 26};
@@ -131,7 +131,8 @@ static inline float s_minjerk(float tau){
 
 //==================== NEW: Joystick Pipeline ====================
 struct JoyCfg { 
-  float deadzone=0.06f, expo=0.35f, slew_per_s=8000.0f, filt_hz=60.0f; 
+  float deadzone=0.06f, expo=0.35f, slew_per_s=8000.0f, filt_hz=60.0f, 
+        pan_tilt_speed=1.0f, slide_speed=1.0f; 
 } joy;
 
 struct JoyState { 
@@ -175,11 +176,11 @@ void joystick_tick(){
 
   joy_filt.pan   = slew_limit(joy_filt.pan,   iir_1pole(joy_filt.pan,   joy_cmd.pan,   joy.filt_hz, dt), joy.slew_per_s/(float)PAN_OFFSET_RANGE, dt);
   joy_filt.tilt  = slew_limit(joy_filt.tilt,  iir_1pole(joy_filt.tilt,  joy_cmd.tilt,  joy.filt_hz, dt), joy.slew_per_s/(float)TILT_OFFSET_RANGE, dt);
-  joy_filt.slide = slew_limit(joy_filt.slide, iir_1pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), 1.0f, dt);
+  joy_filt.slide = slew_limit(joy_filt.slide, iir_1pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
 
-  pan_offset_steps  = (long)lroundf(joy_filt.pan  * (float)PAN_OFFSET_RANGE);
-  tilt_offset_steps = (long)lroundf(joy_filt.tilt * (float)TILT_OFFSET_RANGE);
-  slide_jog_cmd     = clampF(joy_filt.slide, -1.f, +1.f);
+  pan_offset_steps  = (long)lroundf(joy_filt.pan  * (float)PAN_OFFSET_RANGE * joy.pan_tilt_speed);
+  tilt_offset_steps = (long)lroundf(joy_filt.tilt * (float)TILT_OFFSET_RANGE * joy.pan_tilt_speed);
+  slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 }
 
 //==================== NEW: Planificateur "temps commun" ====================
@@ -228,14 +229,14 @@ void coordinator_tick(){
     // Jog Pan
     if (fabs(joy_filt.pan) > 0.001f) {
       long p = steppers[0]->targetPos();
-      p = clampL(p + (long)lround(joy_filt.pan * PAN_JOG_SPEED * dt), cfg[0].min_limit, cfg[0].max_limit);
+      p = clampL(p + (long)lround(joy_filt.pan * PAN_JOG_SPEED * joy.pan_tilt_speed * dt), cfg[0].min_limit, cfg[0].max_limit);
       steppers[0]->moveTo(p);
     }
     
     // Jog Tilt
     if (fabs(joy_filt.tilt) > 0.001f) {
       long t = steppers[1]->targetPos();
-      t = clampL(t + (long)lround(joy_filt.tilt * TILT_JOG_SPEED * dt), cfg[1].min_limit, cfg[1].max_limit);
+      t = clampL(t + (long)lround(joy_filt.tilt * TILT_JOG_SPEED * joy.pan_tilt_speed * dt), cfg[1].min_limit, cfg[1].max_limit);
       steppers[1]->moveTo(t);
     }
     
@@ -334,16 +335,40 @@ void processOSC() {
       // Traitement des messages OSC
       // Joystick en OSC (-1..+1)
       msg.dispatch("/pan", [](OSCMessage &m){ 
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f); 
       });
       msg.dispatch("/tilt", [](OSCMessage &m){ 
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         joy_raw.tilt = clampF(m.getFloat(0), -1.f, +1.f); 
       });
       msg.dispatch("/joy/pt", [](OSCMessage &m){ 
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f);
         joy_raw.tilt = clampF(m.getFloat(1), -1.f, +1.f); 
       });
       msg.dispatch("/slide/jog", [](OSCMessage &m){ 
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         joy_raw.slide = clampF(m.getFloat(0), -1.f, +1.f); 
       });
       
@@ -353,9 +378,21 @@ void processOSC() {
         if (m.size() > 1) joy.expo = clampF(m.getFloat(1), 0.f, 0.95f);
         if (m.size() > 2) joy.slew_per_s = fabsf(m.getFloat(2));
         if (m.size() > 3) joy.filt_hz = fabsf(m.getFloat(3));
+        if (m.size() > 4) joy.pan_tilt_speed = clampF(m.getFloat(4), 0.1f, 3.0f);
+        if (m.size() > 5) joy.slide_speed = clampF(m.getFloat(5), 0.1f, 3.0f);
+        
+        Serial.printf("🎛 Joy cfg: dz=%.2f expo=%.2f slew=%.0f filt=%.1f PT=%.2fx S=%.2fx\n",
+                      joy.deadzone, joy.expo, joy.slew_per_s, joy.filt_hz,
+                      joy.pan_tilt_speed, joy.slide_speed);
       });
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[0].max_limit - cfg[0].min_limit) + cfg[0].min_limit);
         Serial.println("🔧 Moving Pan to: " + String(pos_val));
@@ -365,6 +402,12 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_tilt", [](OSCMessage &msg) {
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[1].max_limit - cfg[1].min_limit) + cfg[1].min_limit);
         Serial.println("🔧 Moving Tilt to: " + String(pos_val));
@@ -374,6 +417,12 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_zoom", [](OSCMessage &msg) {
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[2].max_limit - cfg[2].min_limit) + cfg[2].min_limit);
         Serial.println("🔧 Moving Zoom to: " + String(pos_val));
@@ -383,6 +432,12 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_slide", [](OSCMessage &msg) {
+        // Annuler preset si actif
+        if (sync_move.active) {
+          sync_move.active = false;
+          Serial.println("⏹️ Manual override: cancel preset");
+        }
+        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[3].max_limit - cfg[3].min_limit) + cfg[3].min_limit);
         Serial.println("🔧 Moving Slide to: " + String(pos_val));
@@ -479,6 +534,14 @@ void setup() {
   delay(200);
   
   Serial.println("🚀 ESP32 Slider Controller Starting...");
+  
+  // Calculer les vitesses de jog basées sur la config
+  PAN_JOG_SPEED = cfg[0].max_speed * 0.8f;   // 80% de la vitesse max
+  TILT_JOG_SPEED = cfg[1].max_speed * 0.8f;  // 80% de la vitesse max
+  SLIDE_JOG_SPEED = cfg[3].max_speed * 0.8f;  // 80% de la vitesse max
+  
+  Serial.printf("🎯 Jog speeds: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
+                PAN_JOG_SPEED, TILT_JOG_SPEED, SLIDE_JOG_SPEED);
   
   // Initialiser l'engine
   engine.init();

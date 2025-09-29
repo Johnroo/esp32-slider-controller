@@ -2,6 +2,7 @@
 .pio/
 .vscode/
 .idea/
+compile_commands.json
 
 # Python
 __pycache__/
