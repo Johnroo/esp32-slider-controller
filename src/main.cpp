@@ -207,7 +207,7 @@ void joystick_tick(){
   joy_filt.slide = slew_limit(joy_filt.slide, iir_1pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
 
   // Intégration des offsets joystick (comportement "latched")
-  if (sync_move.active) {
+  if (sync_move.active || slideAB.enabled || fabsf(slide_jog_cmd) > 0.001f) {
     // Vitesse d'empilement en steps/s à |joy|=1 (30% de la Vmax de l'axe)
     const float PAN_OFFSET_RATE  = cfg[0].max_speed * 0.3f;  // steps/s
     const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.3f;  // steps/s
@@ -294,7 +294,7 @@ void coordinator_tick(){
       steppers[1]->moveTo(Tgoal);
     }
 
-    return; // ignore le jog slide quand AB est ON
+    // Ne plus retourner ici — on laisse la suite traiter le joystick P/T
   }
 
   // 2) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
@@ -315,8 +315,8 @@ void coordinator_tick(){
       steppers[1]->moveTo(t);
     }
     
-    // Jog Slide (+ follow map for Pan/Tilt)
-    if (fabs(slide_jog_cmd) > 0.001f){
+    // Jog Slide (+ follow map for Pan/Tilt) - bloqué pendant AB
+    if (!slideAB.enabled && fabs(slide_jog_cmd) > 0.001f){
       long s = steppers[3]->targetPos();
       long Sgoal = clampL(s + (long)lround(slide_jog_cmd * SLIDE_JOG_SPEED * dt),
                           cfg[3].min_limit, cfg[3].max_limit);
@@ -329,8 +329,13 @@ void coordinator_tick(){
         long tComp = tilt_comp_from_slide(Sgoal);
         long Pgoal = clampL(follow.pan_anchor  + pComp + pan_offset_steps,  cfg[0].min_limit, cfg[0].max_limit);
         long Tgoal = clampL(follow.tilt_anchor + tComp + tilt_offset_steps, cfg[1].min_limit, cfg[1].max_limit);
-        steppers[0]->moveTo(Pgoal);
-        steppers[1]->moveTo(Tgoal);
+        
+        // Ne PAS écraser un axe si le joystick le pilote déjà
+        bool joyP = fabsf(joy_filt.pan)  > 0.001f;
+        bool joyT = fabsf(joy_filt.tilt) > 0.001f;
+        
+        if (!joyP) steppers[0]->moveTo(Pgoal);
+        if (!joyT) steppers[1]->moveTo(Tgoal);
       }
     }
   }
