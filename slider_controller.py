@@ -9,13 +9,37 @@ import socket
 import struct
 import json
 import time
+import os
+import threading
+import math
 from datetime import datetime
 
 app = Flask(__name__)
 
 # OSC Configuration
-OSC_HOST = "192.168.1.22"  # ESP32 IP address (esproo.local)
+OSC_HOST = "192.168.1.198"  # ESP32 IP address (esproo.local)
 OSC_PORT = 8000
+
+# --- Joystick (pygame) config ---
+JOYSTICK_USE_PYGAME = True   # Activé pour le joystick physique
+JOYSTICK_SIMULATION = False  # Mode simulation désactivé
+JOYSTICK_NAME_HINT = "Logitech Extreme 3D"
+JOYSTICK_DEADZONE   = 0.08      # zone morte
+JOYSTICK_EXPO       = 0.35      # 0..1 (0 = linéaire, 0.35 = doux, 0.7 = très expo)
+JOYSTICK_RATE_HZ    = 60        # fréquence de polling (réduit pour stabilité)
+JOYSTICK_SEND_EPS   = 0.01      # variation minimale pour renvoyer
+JOYSTICK_SEND_HZ    = 30        # max envois OSC/s (réduit pour stabilité)
+
+joystick_state = {
+    'connected': True,  # Simulation activée par défaut
+    'name': "Simulateur (Logitech Extreme 3D Pro)",
+    'x': 0.0,     # -1..+1 (pan)
+    'y': 0.0,     # -1..+1 (tilt, positif = stick vers le haut)
+    'z': 0.0,
+    'throttle': 0.0,
+    'buttons': [False] * 12,
+    'timestamp': 0.0
+}
 
 # OSC Message Builder
 def pad_osc_string(s: str) -> bytes:
@@ -54,6 +78,197 @@ def send_osc_message(address, *args):
         print(f"Error sending OSC message: {e}")
         return False
 
+#==================== Joystick (pygame) helpers ====================
+
+def _expo(v: float, expo: float) -> float:
+    """Mix linéaire/cubique : classique RC"""
+    return (1.0 - expo) * v + expo * (v ** 3)
+
+def _apply_deadzone(v: float, dz: float) -> float:
+    """Applique la zone morte"""
+    return 0.0 if abs(v) < dz else v
+
+def _start_joystick_thread():
+    """Démarre le thread de lecture du joystick"""
+    if JOYSTICK_SIMULATION:
+        print("[JOYSTICK] Mode simulation activé")
+        # Démarrer un thread de simulation pour tester l'interface
+        t = threading.Thread(target=_joystick_simulator, name="joystick-simulator", daemon=True)
+        t.start()
+        print("[JOYSTICK] Thread simulateur démarré")
+        return
+    elif not JOYSTICK_USE_PYGAME:
+        print("[JOYSTICK] Joystick désactivé")
+        return
+    
+    print("[JOYSTICK] Démarrage du thread pygame...")
+    t = threading.Thread(target=_joystick_worker, name="pygame-joystick", daemon=True)
+    t.start()
+    print("[JOYSTICK] Thread démarré")
+
+def _joystick_simulator():
+    """Simulateur de joystick pour tester l'interface"""
+    global joystick_state
+    import math
+    
+    print("[JOYSTICK] Mode simulation activé")
+    joystick_state['connected'] = True
+    joystick_state['name'] = "Simulateur (Logitech Extreme 3D Pro)"
+    
+    # Simulation d'un mouvement circulaire
+    t = 0
+    while True:
+        # Mouvement circulaire lent
+        x = 0.3 * math.sin(t * 0.1)
+        y = 0.3 * math.cos(t * 0.1)
+        
+        joystick_state.update({
+            'x': float(x),
+            'y': float(y),
+            'z': 0.0,
+            'throttle': 0.0,
+            'buttons': [False] * 12,
+            'timestamp': time.time()
+        })
+        
+        # Envoyer les données simulées
+        send_osc_message('/joy/pt', float(x), float(y))
+        
+        t += 1
+        time.sleep(1.0 / 30)  # 30 FPS
+
+def _joystick_worker():
+    """Worker thread pour lire le joystick en continu"""
+    global joystick_state
+    
+    # Configuration SDL pour macOS - approche plus conservative
+    os.environ['SDL_VIDEODRIVER'] = 'dummy'
+    os.environ['SDL_AUDIODRIVER'] = 'dummy'
+    os.environ['SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS'] = '1'
+    os.environ['SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS'] = '1'
+    
+    # Délai pour éviter les conflits
+    time.sleep(2)
+    
+    try:
+        import pygame
+        print("[JOYSTICK] pygame importé avec succès")
+    except Exception as e:
+        print(f"[JOYSTICK] pygame indisponible: {e}")
+        return
+
+    # Initialisation en plusieurs étapes
+    try:
+        print("[JOYSTICK] Initialisation pygame...")
+        pygame.init()
+        print("[JOYSTICK] pygame.init() OK")
+        
+        pygame.joystick.init()
+        print("[JOYSTICK] pygame.joystick.init() OK")
+    except Exception as e:
+        print(f"[JOYSTICK] Erreur initialisation: {e}")
+        return
+    
+    # Délai pour la stabilisation
+    time.sleep(0.5)
+    
+    try:
+        count = pygame.joystick.get_count()
+        print(f"[JOYSTICK] Nombre de joysticks détectés: {count}")
+    except Exception as e:
+        print(f"[JOYSTICK] Erreur get_count: {e}")
+        return
+    
+    if count == 0:
+        print("[JOYSTICK] Aucun joystick détecté")
+        return
+    
+    js = None
+    try:
+        for i in range(count):
+            try:
+                j = pygame.joystick.Joystick(i)
+                j.init()
+                name = j.get_name() or ""
+                print(f"[JOYSTICK] Joystick {i}: {name}")
+                if JOYSTICK_NAME_HINT.lower() in name.lower() or js is None:
+                    js = j
+                    print(f"[JOYSTICK] Sélectionné: {name}")
+            except Exception as e:
+                print(f"[JOYSTICK] Erreur joystick {i}: {e}")
+                continue
+    except Exception as e:
+        print(f"[JOYSTICK] Erreur lors de la sélection: {e}")
+        return
+    
+    if js is None:
+        print("[JOYSTICK] Aucun joystick sélectionné")
+        return
+
+    try:
+        print(f"[JOYSTICK] Connecté: {js.get_name()}")
+        joystick_state['connected'] = True
+        joystick_state['name'] = js.get_name()
+    except Exception as e:
+        print(f"[JOYSTICK] Erreur connexion: {e}")
+        return
+
+    clock = pygame.time.Clock()
+    last_send = time.time()
+    last_x, last_y = 0.0, 0.0
+
+    ema_x = 0.0
+    ema_y = 0.0
+    alpha = 0.2  # lissage léger
+
+    while True:
+        # vider la queue d'événements
+        for _ in pygame.event.get():
+            pass
+
+        try:
+            x = js.get_axis(0) if js.get_numaxes() > 0 else 0.0     # X
+            y = js.get_axis(1) if js.get_numaxes() > 1 else 0.0     # Y
+            z = js.get_axis(2) if js.get_numaxes() > 2 else 0.0     # twist
+            thr = js.get_axis(3) if js.get_numaxes() > 3 else 0.0   # throttle
+        except Exception:
+            x = y = z = thr = 0.0
+
+        # deadzone + expo + lissage ; inverser Y pour "stick en haut = +"
+        x = _apply_deadzone(x, JOYSTICK_DEADZONE)
+        y = _apply_deadzone(y, JOYSTICK_DEADZONE)
+        x = _expo(x, JOYSTICK_EXPO)
+        y = _expo(y, JOYSTICK_EXPO)
+        ema_x = (1 - alpha) * ema_x + alpha * x
+        ema_y = (1 - alpha) * ema_y + alpha * (-y)  # invert Y
+
+        # état pour l'UI
+        try:
+            buttons = [bool(js.get_button(i)) for i in range(js.get_numbuttons())]
+        except Exception:
+            buttons = []
+
+        now = time.time()
+        joystick_state.update({
+            'x': float(max(-1.0, min(1.0, ema_x))),
+            'y': float(max(-1.0, min(1.0, ema_y))),
+            'z': float(z),
+            'throttle': float(thr),
+            'buttons': buttons,
+            'timestamp': now
+        })
+
+        # Envoi OSC throttlé (route combinée déjà présente côté ESP)
+        send_due = (now - last_send) >= (1.0 / JOYSTICK_SEND_HZ)
+        moved_enough = (abs(ema_x - last_x) > JOYSTICK_SEND_EPS) or (abs(ema_y - last_y) > JOYSTICK_SEND_EPS)
+        if send_due and moved_enough:
+            # /joy/pt  : pan, tilt  dans [-1..1]
+            send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
+            last_send = now
+            last_x, last_y = ema_x, ema_y
+
+        clock.tick(JOYSTICK_RATE_HZ)
+
 # Web Routes
 @app.route('/')
 def index():
@@ -67,6 +282,12 @@ def advanced():
 def api_status():
     """Check server status"""
     return jsonify({'status': 'ok', 'connected': True})
+
+@app.route('/api/joystick/state', methods=['GET'])
+def api_joystick_state():
+    """Obtenir l'état du joystick en temps réel"""
+    # Retourne simplement l'état actuel du joystick (mis à jour par le thread)
+    return jsonify(joystick_state)
 
 @app.route('/api/slide/jog', methods=['POST'])
 def api_slide_jog():
@@ -437,8 +658,117 @@ def set_tilt_mapping():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+#==================== NEW: Routes pour offsets latched ====================
+
+@app.route('/api/offset/zero', methods=['POST'])
+def api_offset_zero():
+    """Reset les offsets latched (pan et/ou tilt)"""
+    try:
+        data = request.get_json()
+        do_pan = data.get('pan', True) if data else True
+        do_tilt = data.get('tilt', True) if data else True
+        
+        # Envoyer commande OSC
+        if do_pan and do_tilt:
+            success = send_osc_message('/offset/zero', 1, 1)
+        elif do_pan:
+            success = send_osc_message('/offset/zero', 1, 0)
+        elif do_tilt:
+            success = send_osc_message('/offset/zero', 0, 1)
+        else:
+            success = True
+        
+        return jsonify({
+            'success': success,
+            'pan_reset': do_pan,
+            'tilt_reset': do_tilt,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/offset/add', methods=['POST'])
+def api_offset_add():
+    """Ajouter des steps aux offsets latched"""
+    try:
+        data = request.get_json()
+        d_pan = int(data.get('d_pan', 0))
+        d_tilt = int(data.get('d_tilt', 0))
+        
+        # Envoyer commande OSC
+        success = send_osc_message('/offset/add', d_pan, d_tilt)
+        
+        return jsonify({
+            'success': success,
+            'd_pan': d_pan,
+            'd_tilt': d_tilt,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/offset/set', methods=['POST'])
+def api_offset_set():
+    """Définir les offsets latched absolument"""
+    try:
+        data = request.get_json()
+        pan_offset = int(data.get('pan', 0))
+        tilt_offset = int(data.get('tilt', 0))
+        
+        # Envoyer commande OSC
+        success = send_osc_message('/offset/set', pan_offset, tilt_offset)
+        
+        return jsonify({
+            'success': success,
+            'pan_offset': pan_offset,
+            'tilt_offset': tilt_offset,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/offset/bake', methods=['POST'])
+def api_offset_bake():
+    """Intégrer les offsets dans le preset et les remettre à zéro"""
+    try:
+        # Envoyer commande OSC
+        success = send_osc_message('/offset/bake')
+        
+        return jsonify({
+            'success': success,
+            'message': 'Offsets baked into preset and reset',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/offset/status', methods=['GET'])
+def api_offset_status():
+    """Obtenir le statut des offsets (lecture seule)"""
+    try:
+        # Note: Cette route ne peut pas lire les valeurs actuelles depuis l'ESP32
+        # car nous n'avons pas implémenté de route OSC de lecture
+        # Elle retourne juste le statut de connexion
+        return jsonify({
+            'success': True,
+            'message': 'Offset status endpoint available',
+            'note': 'Actual offset values not available via OSC',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
 if __name__ == '__main__':
+    from config import FLASK_PORT
+    
     print(f"ESP32 Slider Controller starting...")
     print(f"OSC Target: {OSC_HOST}:{OSC_PORT}")
-    print(f"Web interface: http://localhost:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print(f"Web interface: http://localhost:{FLASK_PORT}")
+    
+    # Démarrer le thread du joystick
+    _start_joystick_thread()
+    
+    # Attendre un peu pour que le simulateur démarre
+    time.sleep(1)
+    
+    app.run(debug=True, host='0.0.0.0', port=FLASK_PORT)

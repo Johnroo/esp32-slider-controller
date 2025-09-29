@@ -206,6 +206,34 @@
             align-items: center;
         }
         
+        .joy-flex { 
+            display: flex; 
+            gap: 24px; 
+            align-items: center; 
+            flex-wrap: wrap; 
+        }
+        .joy-visual { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+        }
+        #joyCanvas { 
+            background: #f8f9fa; 
+            border-radius: 12px; 
+            border: 2px solid #e9ecef;
+        }
+        #sliderJoystickGroup { 
+            transition: opacity .2s ease; 
+        }
+        body[data-joy="connected"] #sliderJoystickGroup { 
+            display: none; 
+        }
+        .hint { 
+            font-size: 12px; 
+            color: #6c757d; 
+            margin-top: 6px; 
+        }
+        
         .joystick {
             flex: 1;
             text-align: center;
@@ -276,18 +304,29 @@
             <!-- Joystick Panel -->
             <div class="panel">
                 <h3>🎮 Joystick Controls</h3>
-                <div class="joystick-container">
-                    <div class="joystick">
-                        <h4>Pan Offset</h4>
-                        <input type="range" class="slider" id="panOffset" min="-1" max="1" step="0.01" value="0">
-                        <div class="value-display" id="panValue">0.00</div>
+
+                <div class="joy-flex">
+                    <div class="joy-visual">
+                        <canvas id="joyCanvas" width="180" height="180"></canvas>
+                        <div class="value-display">X: <span id="joyX">0.00</span> | Y: <span id="joyY">0.00</span></div>
+                        <div id="joyHint" class="hint">Recherche d'un joystick USB…</div>
                     </div>
-                    <div class="joystick">
-                        <h4>Tilt Offset</h4>
-                        <input type="range" class="slider" id="tiltOffset" min="-1" max="1" step="0.01" value="0">
-                        <div class="value-display" id="tiltValue">0.00</div>
+
+                    <!-- Fallback sliders (cachés si joystick connecté) -->
+                    <div id="sliderJoystickGroup">
+                        <div class="joystick">
+                            <h4>Pan Offset</h4>
+                            <input type="range" class="slider" id="panOffset" min="-1" max="1" step="0.01" value="0">
+                            <div class="value-display" id="panValue">0.00</div>
+                        </div>
+                        <div class="joystick">
+                            <h4>Tilt Offset</h4>
+                            <input type="range" class="slider" id="tiltOffset" min="-1" max="1" step="0.01" value="0">
+                            <div class="value-display" id="tiltValue">0.00</div>
+                        </div>
                     </div>
                 </div>
+
                 <button class="btn btn-warning" onclick="resetOffsets()">🔄 Reset Offsets</button>
             </div>
             
@@ -773,6 +812,72 @@
         document.getElementById('pointAValue').textContent = '0%';
         document.getElementById('pointBValue').textContent = '100%';
         document.getElementById('durationValue').textContent = '4.0s';
+        
+        //==================== Joystick Canvas ====================
+        const joyCanvas = document.getElementById('joyCanvas');
+        const joyCtx = joyCanvas.getContext('2d');
+        const JOY_R = Math.min(joyCanvas.width, joyCanvas.height) * 0.45;
+
+        function drawJoy(x, y) {
+            const cx = joyCanvas.width / 2;
+            const cy = joyCanvas.height / 2;
+
+            joyCtx.clearRect(0,0,joyCanvas.width,joyCanvas.height);
+
+            // cercle extérieur
+            joyCtx.beginPath();
+            joyCtx.arc(cx, cy, JOY_R, 0, Math.PI*2);
+            joyCtx.lineWidth = 2;
+            joyCtx.strokeStyle = '#6c757d';
+            joyCtx.stroke();
+
+            // croix centrale
+            joyCtx.beginPath(); 
+            joyCtx.moveTo(cx - JOY_R, cy); 
+            joyCtx.lineTo(cx + JOY_R, cy); 
+            joyCtx.stroke();
+            joyCtx.beginPath(); 
+            joyCtx.moveTo(cx, cy - JOY_R); 
+            joyCtx.lineTo(cx, cy + JOY_R); 
+            joyCtx.stroke();
+
+            // point (x,y) -> pixel
+            const px = cx + x * JOY_R;
+            const py = cy - y * JOY_R;
+
+            // cercle du point
+            joyCtx.beginPath();
+            joyCtx.arc(px, py, 8, 0, Math.PI*2);
+            joyCtx.fillStyle = '#007bff';
+            joyCtx.fill();
+        }
+
+        async function pollJoystick() {
+            try {
+                const r = await fetch('/api/joystick/state');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const js = await r.json();
+
+                const x = (js.x ?? 0);
+                const y = (js.y ?? 0);
+                drawJoy(x, y);
+
+                document.getElementById('joyX').textContent = x.toFixed(2);
+                document.getElementById('joyY').textContent = y.toFixed(2);
+
+                const conn = !!js.connected;
+                document.body.dataset.joy = conn ? 'connected' : 'disconnected';
+                document.getElementById('joyHint').textContent =
+                    conn ? (js.name ? `✅ ${js.name}` : '✅ Joystick connecté') : '❌ Aucun joystick détecté (les faders restent actifs).';
+            } catch (e) {
+                // En cas d'erreur, on laisse les faders visibles
+                document.body.dataset.joy = 'disconnected';
+            } finally {
+                // ~30 FPS UI
+                setTimeout(pollJoystick, 33);
+            }
+        }
+        pollJoystick();
     </script>
 </body>
 </html>

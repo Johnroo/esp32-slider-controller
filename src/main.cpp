@@ -23,6 +23,11 @@ int activePreset = -1;
 // Offsets joystick (en steps)
 volatile long pan_offset_steps  = 0;
 volatile long tilt_offset_steps = 0;
+
+// Offsets joystick latched (s'accumulent, persistent)
+volatile long pan_offset_latched  = 0;
+volatile long tilt_offset_latched = 0;
+
 long PAN_OFFSET_RANGE  = 800;   // max offset +/- (configurable via OSC)
 long TILT_OFFSET_RANGE = 800;
 
@@ -201,8 +206,22 @@ void joystick_tick(){
   joy_filt.tilt  = slew_limit(joy_filt.tilt,  iir_1pole(joy_filt.tilt,  joy_cmd.tilt,  joy.filt_hz, dt), joy.slew_per_s/(float)TILT_OFFSET_RANGE, dt);
   joy_filt.slide = slew_limit(joy_filt.slide, iir_1pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
 
-  pan_offset_steps  = (long)lroundf(joy_filt.pan  * (float)PAN_OFFSET_RANGE * joy.pan_tilt_speed);
-  tilt_offset_steps = (long)lroundf(joy_filt.tilt * (float)TILT_OFFSET_RANGE * joy.pan_tilt_speed);
+  // Intégration des offsets joystick (comportement "latched")
+  if (sync_move.active) {
+    // Vitesse d'empilement en steps/s à |joy|=1 (30% de la Vmax de l'axe)
+    const float PAN_OFFSET_RATE  = cfg[0].max_speed * 0.3f;  // steps/s
+    const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.3f;  // steps/s
+    
+    long d_pan  = lroundf(joy_filt.pan  * PAN_OFFSET_RATE  * dt);
+    long d_tilt = lroundf(joy_filt.tilt * TILT_OFFSET_RATE * dt);
+    
+    pan_offset_latched  = clampL(pan_offset_latched  + d_pan,  -PAN_OFFSET_RANGE,  +PAN_OFFSET_RANGE);
+    tilt_offset_latched = clampL(tilt_offset_latched + d_tilt, -TILT_OFFSET_RANGE, +TILT_OFFSET_RANGE);
+  }
+  
+  // Publie les offsets utilisés par le planificateur
+  pan_offset_steps  = pan_offset_latched;
+  tilt_offset_steps = tilt_offset_latched;
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 }
 
@@ -607,6 +626,41 @@ void processOSC() {
       msg.dispatch("/config/tilt_map", [](OSCMessage &m){
         TILT_AT_SLIDE_MIN = m.getInt(0);
         TILT_AT_SLIDE_MAX = m.getInt(1);
+      });
+      
+      //==================== NEW: Routes OSC pour offsets latched ====================
+      msg.dispatch("/offset/zero", [](OSCMessage &m){
+        int do_pan  = (m.size()>0) ? m.getInt(0) : 1;
+        int do_tilt = (m.size()>1) ? m.getInt(1) : 1;
+        if (do_pan)  pan_offset_latched  = 0;
+        if (do_tilt) tilt_offset_latched = 0;
+        Serial.println("🔄 Reset offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
+      });
+      
+      msg.dispatch("/offset/add", [](OSCMessage &m){
+        if (m.size()>0)
+          pan_offset_latched  = clampL(pan_offset_latched  + m.getInt(0), -PAN_OFFSET_RANGE,  PAN_OFFSET_RANGE);
+        if (m.size()>1)
+          tilt_offset_latched = clampL(tilt_offset_latched + m.getInt(1), -TILT_OFFSET_RANGE, TILT_OFFSET_RANGE);
+        Serial.println("➕ Add offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
+      });
+      
+      msg.dispatch("/offset/set", [](OSCMessage &m){
+        if (m.size()>0) pan_offset_latched  = clampL(m.getInt(0), -PAN_OFFSET_RANGE,  PAN_OFFSET_RANGE);
+        if (m.size()>1) tilt_offset_latched = clampL(m.getInt(1), -TILT_OFFSET_RANGE, TILT_OFFSET_RANGE);
+        Serial.println("🎯 Set offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
+      });
+      
+      msg.dispatch("/offset/bake", [](OSCMessage &m){
+        if (sync_move.active){
+          // Intègre l'offset actuel dans la goal_base du preset
+          sync_move.goal_base[0] = clampL(sync_move.goal_base[0] + pan_offset_latched,  cfg[0].min_limit, cfg[0].max_limit);
+          sync_move.goal_base[1] = clampL(sync_move.goal_base[1] + tilt_offset_latched, cfg[1].min_limit, cfg[1].max_limit);
+          Serial.println("🍞 Bake offsets into preset: pan=" + String(sync_move.goal_base[0]) + ", tilt=" + String(sync_move.goal_base[1]));
+        }
+        pan_offset_latched  = 0;
+        tilt_offset_latched = 0;
+        Serial.println("🔄 Reset offsets after bake");
       });
     } else {
       Serial.println("❌ OSC Error: " + String(msg.getError()));

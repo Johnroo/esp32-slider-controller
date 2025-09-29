@@ -4,12 +4,12 @@ Update these settings according to your setup
 """
 
 # ESP32 Network Configuration
-ESP32_IP = "192.168.1.22"  # ESP32 IP address (esproo.local)
+ESP32_IP = "192.168.1.198"  # ESP32 IP address (esproo.local)
 ESP32_OSC_PORT = 8000
 
 # Flask Web Server Configuration
 FLASK_HOST = "0.0.0.0"  # Listen on all interfaces
-FLASK_PORT = 9000
+FLASK_PORT = 9001
 FLASK_DEBUG = True
 
 # OSC Message Configuration
