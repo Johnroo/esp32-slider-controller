@@ -41,6 +41,12 @@ struct SyncMove {
   long goal_base[NUM_MOTORS]; // cible sans offsets/couplages
 } sync_move;
 
+// Politique d'annulation des presets
+struct CancelPolicy { 
+  bool by_joystick = false;  // joystick n'annule pas les presets (offsets actifs)
+  bool by_axis = true;      // Direct Axis annule les presets (contrôle direct)
+} cancel;
+
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
@@ -335,38 +341,38 @@ void processOSC() {
       // Traitement des messages OSC
       // Joystick en OSC (-1..+1)
       msg.dispatch("/pan", [](OSCMessage &m){ 
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_joystick && sync_move.active) {
           sync_move.active = false;
-          Serial.println("⏹️ Manual override: cancel preset");
+          Serial.println("⏹️ Cancel by joystick");
         }
         
         joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f); 
       });
       msg.dispatch("/tilt", [](OSCMessage &m){ 
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_joystick && sync_move.active) {
           sync_move.active = false;
-          Serial.println("⏹️ Manual override: cancel preset");
+          Serial.println("⏹️ Cancel by joystick");
         }
         
         joy_raw.tilt = clampF(m.getFloat(0), -1.f, +1.f); 
       });
       msg.dispatch("/joy/pt", [](OSCMessage &m){ 
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_joystick && sync_move.active) {
           sync_move.active = false;
-          Serial.println("⏹️ Manual override: cancel preset");
+          Serial.println("⏹️ Cancel by joystick");
         }
         
         joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f);
         joy_raw.tilt = clampF(m.getFloat(1), -1.f, +1.f); 
       });
       msg.dispatch("/slide/jog", [](OSCMessage &m){ 
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_joystick && sync_move.active) {
           sync_move.active = false;
-          Serial.println("⏹️ Manual override: cancel preset");
+          Serial.println("⏹️ Cancel by joystick");
         }
         
         joy_raw.slide = clampF(m.getFloat(0), -1.f, +1.f); 
@@ -386,9 +392,16 @@ void processOSC() {
                       joy.pan_tilt_speed, joy.slide_speed);
       });
       
+      // Configuration de la politique d'annulation
+      msg.dispatch("/preset/cancel_policy", [](OSCMessage &m){
+        if (m.size() > 0) cancel.by_joystick = m.getInt(0) != 0;
+        if (m.size() > 1) cancel.by_axis = m.getInt(1) != 0;
+        Serial.printf("⚙️ Cancel policy: joystick=%d axis=%d\n", cancel.by_joystick, cancel.by_axis);
+      });
+      
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_axis && sync_move.active) {
           sync_move.active = false;
           Serial.println("⏹️ Manual override: cancel preset");
         }
@@ -402,8 +415,8 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_tilt", [](OSCMessage &msg) {
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_axis && sync_move.active) {
           sync_move.active = false;
           Serial.println("⏹️ Manual override: cancel preset");
         }
@@ -417,8 +430,8 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_zoom", [](OSCMessage &msg) {
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_axis && sync_move.active) {
           sync_move.active = false;
           Serial.println("⏹️ Manual override: cancel preset");
         }
@@ -432,8 +445,8 @@ void processOSC() {
       });
       
       msg.dispatch("/axis_slide", [](OSCMessage &msg) {
-        // Annuler preset si actif
-        if (sync_move.active) {
+        // Annuler preset selon la politique
+        if (cancel.by_axis && sync_move.active) {
           sync_move.active = false;
           Serial.println("⏹️ Manual override: cancel preset");
         }
@@ -532,7 +545,7 @@ void setupWebServer() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  
+
   Serial.println("🚀 ESP32 Slider Controller Starting...");
   
   // Calculer les vitesses de jog basées sur la config
@@ -548,7 +561,7 @@ void setup() {
   
   // Configurer les drivers TMC
   setupDriversTMC();
-  
+
   // Attacher les steppers
   for (int i=0; i<NUM_MOTORS; i++) {
     steppers[i] = engine.stepperConnectToPin(STEP_PINS[i]);
@@ -580,7 +593,7 @@ void setup() {
   
   // OSC
   setupOSC();
-  
+
   Serial.println("🎯 System ready!");
 }
 
@@ -599,7 +612,7 @@ void loop() {
   tiltPos = steppers[1]->getCurrentPosition();
   zoomPos = steppers[2]->getCurrentPosition();
   slidePos = steppers[3]->getCurrentPosition();
-  
+
   // Log périodique (console web + série)
   static unsigned long tlog = 0;
   static unsigned long osc_log = 0;
