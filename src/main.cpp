@@ -47,6 +47,23 @@ struct CancelPolicy {
   bool by_axis = true;      // Direct Axis annule les presets (contrôle direct)
 } cancel;
 
+// Couplage Pan/Tilt ↔ Slide pendant le jog
+struct Follow {
+  bool enabled = true;
+  bool valid   = false;
+  long pan_anchor  = 0;
+  long tilt_anchor = 0;
+} follow;
+
+// Mode AB infini pour le slide
+struct SlideAB {
+  bool enabled = false;
+  long A = 0, B = 0;       // steps
+  uint32_t T_ms = 4000;    // durée d'un aller
+  uint32_t t0_ms = 0;
+  int dir = +1;            // +1: A->B, -1: B->A
+} slideAB;
+
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
@@ -220,6 +237,14 @@ long tilt_comp_from_slide(long slide){
   return (long) lround(lerp(TILT_AT_SLIDE_MIN, TILT_AT_SLIDE_MAX, clampF(u,0,1)));
 }
 
+// Helper pour rafraîchir l'ancre de suivi
+static inline void follow_refresh_anchor() {
+  long s = steppers[3]->targetPos();
+  follow.pan_anchor  = steppers[0]->targetPos() - pan_comp_from_slide(s);
+  follow.tilt_anchor = steppers[1]->targetPos() - tilt_comp_from_slide(s);
+  follow.valid = true;
+}
+
 //==================== NEW: Tick de coordination ====================
 void coordinator_tick(){
   static uint32_t last_ms = millis();
@@ -228,7 +253,32 @@ void coordinator_tick(){
   if (dt_ms == 0) return;
   last_ms = now;
 
-  // 1) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
+  // 1) Mode AB: fait aller le slide A<->B en boucle, avec profil min-jerk
+  if (slideAB.enabled){
+    float tau = (float)(now - slideAB.t0_ms) / (float)slideAB.T_ms;
+    if (tau >= 1.0f){ slideAB.dir = -slideAB.dir; slideAB.t0_ms = now; tau = 0.0f; }
+    float s = s_minjerk(tau);
+    long Sgoal = (slideAB.dir > 0)
+                   ? (long)lround(lerp(slideAB.A, slideAB.B, s))
+                   : (long)lround(lerp(slideAB.B, slideAB.A, s));
+    Sgoal = clampL(Sgoal, cfg[3].min_limit, cfg[3].max_limit);
+    steppers[3]->moveTo(Sgoal);
+
+    // Faire suivre Pan/Tilt via la map + offsets joystick
+    if (follow.enabled){
+      if (!follow.valid) follow_refresh_anchor();
+      long pComp = pan_comp_from_slide(Sgoal);
+      long tComp = tilt_comp_from_slide(Sgoal);
+      long Pgoal = clampL(follow.pan_anchor  + pComp + pan_offset_steps,  cfg[0].min_limit, cfg[0].max_limit);
+      long Tgoal = clampL(follow.tilt_anchor + tComp + tilt_offset_steps, cfg[1].min_limit, cfg[1].max_limit);
+      steppers[0]->moveTo(Pgoal);
+      steppers[1]->moveTo(Tgoal);
+    }
+
+    return; // ignore le jog slide quand AB est ON
+  }
+
+  // 2) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
   if (!sync_move.active){
     float dt = dt_ms / 1000.0f;
     
@@ -246,12 +296,23 @@ void coordinator_tick(){
       steppers[1]->moveTo(t);
     }
     
-    // Jog Slide
+    // Jog Slide (+ follow map for Pan/Tilt)
     if (fabs(slide_jog_cmd) > 0.001f){
       long s = steppers[3]->targetPos();
-      double ds = slide_jog_cmd * SLIDE_JOG_SPEED * dt;
-      long goal = clampL(s + (long)lround(ds), cfg[3].min_limit, cfg[3].max_limit);
-      steppers[3]->moveTo(goal);
+      long Sgoal = clampL(s + (long)lround(slide_jog_cmd * SLIDE_JOG_SPEED * dt),
+                          cfg[3].min_limit, cfg[3].max_limit);
+      steppers[3]->moveTo(Sgoal);
+
+      // Faire suivre Pan/Tilt via la map slide->pan/tilt
+      if (follow.enabled) {
+        if (!follow.valid) follow_refresh_anchor();
+        long pComp = pan_comp_from_slide(Sgoal);
+        long tComp = tilt_comp_from_slide(Sgoal);
+        long Pgoal = clampL(follow.pan_anchor  + pComp + pan_offset_steps,  cfg[0].min_limit, cfg[0].max_limit);
+        long Tgoal = clampL(follow.tilt_anchor + tComp + tilt_offset_steps, cfg[1].min_limit, cfg[1].max_limit);
+        steppers[0]->moveTo(Pgoal);
+        steppers[1]->moveTo(Tgoal);
+      }
     }
   }
 
@@ -261,6 +322,7 @@ void coordinator_tick(){
     if (tau >= 1.0f){
       // Fin de mouvement
       sync_move.active = false;
+      follow.valid = false;   // re-anchor next time
       tau = 1.0f;
     }
     float s = s_minjerk(tau);
@@ -397,6 +459,33 @@ void processOSC() {
         if (m.size() > 0) cancel.by_joystick = m.getInt(0) != 0;
         if (m.size() > 1) cancel.by_axis = m.getInt(1) != 0;
         Serial.printf("⚙️ Cancel policy: joystick=%d axis=%d\n", cancel.by_joystick, cancel.by_axis);
+      });
+      
+      // Configuration du suivi Pan/Tilt ↔ Slide
+      msg.dispatch("/follow/en", [](OSCMessage &m){
+        follow.enabled = m.getInt(0) != 0;
+        follow.valid = false;
+        Serial.printf("🎯 Follow mapping on jog: %s\n", follow.enabled ? "ON" : "OFF");
+      });
+      
+      // Mode AB infini pour le slide
+      msg.dispatch("/slide/ab", [](OSCMessage &m){
+        slideAB.enabled = m.getInt(0) != 0;
+        slideAB.t0_ms = millis();
+        follow.valid = false; // re-anchor au démarrage
+        Serial.printf("♾️ Slide AB %s\n", slideAB.enabled ? "ON" : "OFF");
+      });
+      
+      msg.dispatch("/slide/ab/set", [](OSCMessage &m){
+        float uA = clampF(m.getFloat(0), 0.f, 1.f);
+        float uB = clampF(m.getFloat(1), 0.f, 1.f);
+        float T  = fabsf(m.getFloat(2)); if (T <= 0) T = 2.f;
+        slideAB.A    = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, uA));
+        slideAB.B    = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, uB));
+        slideAB.T_ms = (uint32_t)lround(T * 1000.f);
+        slideAB.t0_ms= millis();
+        slideAB.dir  = +1;
+        Serial.printf("AB set A=%ld B=%ld T=%u ms\n", slideAB.A, slideAB.B, slideAB.T_ms);
       });
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
