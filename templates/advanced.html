@@ -410,6 +410,44 @@
             </div>
             <button class="btn btn-info" onclick="applyJoystickConfig()">🎮 Apply Joystick Config</button>
         </div>
+
+        <!-- Follow Mapping Configuration -->
+        <div class="control-panel">
+            <h3>🎯 Follow Mapping</h3>
+            <div class="control-group">
+                <label>Pan/Tilt Follow Slide:</label>
+                <input type="checkbox" id="followEnabled" checked onchange="toggleFollow()">
+                <span id="followStatus">ON</span>
+            </div>
+        </div>
+
+        <!-- Infinite AB Mode -->
+        <div class="control-panel">
+            <h3>♾️ Infinite AB Mode</h3>
+            <div class="control-group">
+                <label>AB Mode:</label>
+                <input type="checkbox" id="abEnabled" onchange="toggleAB()">
+                <span id="abStatus">OFF</span>
+            </div>
+            <div class="control-group">
+                <label>Point A (0-100%):</label>
+                <input type="range" id="pointA" min="0" max="100" step="1" value="0" oninput="updatePointAValue()">
+                <span id="pointAValue">0%</span>
+            </div>
+            <div class="control-group">
+                <label>Point B (0-100%):</label>
+                <input type="range" id="pointB" min="0" max="100" step="1" value="100" oninput="updatePointBValue()">
+                <span id="pointBValue">100%</span>
+            </div>
+            <div class="control-group">
+                <label>Duration (seconds):</label>
+                <input type="range" id="abDuration" min="0.5" max="30.0" step="0.5" value="4.0" oninput="updateDurationValue()">
+                <span id="durationValue">4.0s</span>
+            </div>
+            <div class="control-group">
+                <button onclick="setABPoints()" class="btn-primary">Set AB Points</button>
+            </div>
+        </div>
         
         <!-- Status -->
         <div class="status" id="status">
@@ -669,6 +707,58 @@
             });
         }
         
+        // Follow Mapping functions
+        function toggleFollow() {
+            const enabled = document.getElementById('followEnabled').checked;
+            document.getElementById('followStatus').textContent = enabled ? 'ON' : 'OFF';
+            
+            fetch('/api/follow/enable', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enable: enabled})
+            });
+        }
+
+        // AB Mode functions
+        function toggleAB() {
+            const enabled = document.getElementById('abEnabled').checked;
+            document.getElementById('abStatus').textContent = enabled ? 'ON' : 'OFF';
+            
+            fetch('/api/slide/ab', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enable: enabled})
+            });
+        }
+
+        function updatePointAValue() {
+            document.getElementById('pointAValue').textContent = document.getElementById('pointA').value + '%';
+        }
+
+        function updatePointBValue() {
+            document.getElementById('pointBValue').textContent = document.getElementById('pointB').value + '%';
+        }
+
+        function updateDurationValue() {
+            document.getElementById('durationValue').textContent = document.getElementById('abDuration').value + 's';
+        }
+
+        function setABPoints() {
+            const pointA = parseFloat(document.getElementById('pointA').value) / 100.0;
+            const pointB = parseFloat(document.getElementById('pointB').value) / 100.0;
+            const duration = parseFloat(document.getElementById('abDuration').value);
+            
+            fetch('/api/slide/ab/set', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    point_a: pointA,
+                    point_b: pointB,
+                    duration: duration
+                })
+            });
+        }
+
         // Initialize display values
         document.getElementById('panValue').textContent = '0.00';
         document.getElementById('tiltValue').textContent = '0.00';
@@ -678,6 +768,11 @@
         document.getElementById('axisTiltValue').textContent = '0.50';
         document.getElementById('axisZoomValue').textContent = '0.50';
         document.getElementById('axisSlideValue').textContent = '0.50';
+        
+        // Initialize AB mode values
+        document.getElementById('pointAValue').textContent = '0%';
+        document.getElementById('pointBValue').textContent = '100%';
+        document.getElementById('durationValue').textContent = '4.0s';
     </script>
 </body>
 </html>

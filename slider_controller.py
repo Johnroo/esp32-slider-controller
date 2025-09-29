@@ -140,6 +140,45 @@ def api_joystick_config():
         'slide_speed': slide_speed
     })
 
+@app.route('/api/follow/enable', methods=['POST'])
+def api_follow_enable():
+    """Enable/disable follow mapping"""
+    data = request.get_json()
+    enable = bool(data.get('enable', True))
+    
+    success = send_osc_message('/follow/en', 1 if enable else 0)
+    return jsonify({'success': success, 'enabled': enable})
+
+@app.route('/api/slide/ab', methods=['POST'])
+def api_slide_ab():
+    """Enable/disable infinite AB mode"""
+    data = request.get_json()
+    enable = bool(data.get('enable', False))
+    
+    success = send_osc_message('/slide/ab', 1 if enable else 0)
+    return jsonify({'success': success, 'enabled': enable})
+
+@app.route('/api/slide/ab/set', methods=['POST'])
+def api_slide_ab_set():
+    """Set AB points and duration"""
+    data = request.get_json()
+    point_a = float(data.get('point_a', 0.0))  # 0.0 to 1.0
+    point_b = float(data.get('point_b', 1.0))  # 0.0 to 1.0
+    duration = float(data.get('duration', 4.0))  # seconds
+    
+    # Clamp values
+    point_a = max(0.0, min(1.0, point_a))
+    point_b = max(0.0, min(1.0, point_b))
+    duration = max(0.5, min(60.0, duration))
+    
+    success = send_osc_message('/slide/ab/set', point_a, point_b, duration)
+    return jsonify({
+        'success': success,
+        'point_a': point_a,
+        'point_b': point_b,
+        'duration': duration
+    })
+
 @app.route('/api/stop', methods=['POST'])
 def api_stop():
     """Stop all movement"""
