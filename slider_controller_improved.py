@@ -9,13 +9,13 @@ import threading
 import math
 from flask import Flask, render_template, request, jsonify
 from pythonosc import udp_client
-from config import ESP32_IP, ESP32_OSC_PORT, FLASK_PORT
+from config import ESP32_IP, ESP32_PORT, FLASK_PORT
 
 # Configuration Flask
 app = Flask(__name__)
 
 # Configuration OSC
-osc_client = udp_client.SimpleUDPClient(ESP32_IP, ESP32_OSC_PORT)
+osc_client = udp_client.SimpleUDPClient(ESP32_IP, ESP32_PORT)
 
 # --- Joystick (pygame) config ---
 JOYSTICK_USE_PYGAME = True
@@ -36,9 +36,6 @@ joystick_state = {
     'buttons': [],
     'timestamp': 0.0
 }
-
-# Signal de rescan (hot reconnect manuel via API)
-JOY_RESCAN = threading.Event()
 
 def _expo(v: float, expo: float) -> float:
     """mix linéaire/cubique : classique RC"""
@@ -99,33 +96,11 @@ def _joystick_worker():
     
     while True:
         try:
-            # Demande manuelle de rescan depuis l'API
-            if JOY_RESCAN.is_set():
-                try:
-                    pygame.joystick.quit()
-                    time.sleep(0.2)
-                    pygame.joystick.init()
-                    print("[JOYSTICK] Rescan demandé: sous-système joystick réinitialisé")
-                except Exception as e:
-                    print(f"[JOYSTICK] Erreur rescan: {e}")
-                js = None
-                joystick_state['connected'] = False
-                joystick_state['name'] = None
-                JOY_RESCAN.clear()
-                time.sleep(0.2)
             current_count = pygame.joystick.get_count()
             
             # Détection de changement de joystick
             if current_count != last_joystick_count:
                 print(f"[JOYSTICK] Changement détecté: {last_joystick_count} -> {current_count} joysticks")
-                # Réinitialise le sous-système joystick pour gérer les hotplug proprement
-                try:
-                    pygame.joystick.quit()
-                    time.sleep(0.2)
-                    pygame.joystick.init()
-                    print("[JOYSTICK] Sous-système joystick réinitialisé")
-                except Exception as e:
-                    print(f"[JOYSTICK] Erreur réinit joystick: {e}")
                 js = None
                 last_joystick_count = current_count
                 connection_retry_count = 0
@@ -269,34 +244,6 @@ def index():
 def advanced():
     return render_template('advanced.html')
 
-# ==================== HOMING (Slide, StallGuard) ====================
-@app.route('/api/slide/home', methods=['POST'])
-def api_slide_home():
-    """Déclenche le homing du slide côté ESP32"""
-    try:
-        send_osc_message('/slide/home')
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 500
-
-@app.route('/api/slide/sgthrs', methods=['POST'])
-def api_slide_sgthrs():
-    """Met à jour la sensibilité StallGuard (0..255)"""
-    data = request.get_json(force=True, silent=True) or {}
-    try:
-        val = int(data.get('value', 8))
-    except Exception:
-        val = 8
-    if val < 0:
-        val = 0
-    if val > 255:
-        val = 255
-    try:
-        send_osc_message('/slide/sgthrs', val)
-        return jsonify({"status": "ok", "value": val})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 500
-
 @app.route('/api/joystick/state', methods=['GET'])
 def api_joystick_state():
     """Retourne l'état actuel du joystick"""
@@ -346,12 +293,6 @@ def api_offset_status():
         'tilt_steps': 0
     })
 
-@app.post('/api/joystick/rescan')
-def api_joystick_rescan():
-    """Force un rescan/reinit du sous-système joystick (hot reconnect)."""
-    JOY_RESCAN.set()
-    return "ok"
-
 # Routes pour presets
 @app.route('/api/preset/recall', methods=['POST'])
 def api_preset_recall():
@@ -388,46 +329,13 @@ def api_preset_recall_policy():
     send_osc_message('/preset/recall_policy', slide_policy)
     return "ok"
 
-# Routes pour les axes individuels
-@app.route('/api/axis_slide', methods=['POST'])
-def api_axis_slide():
-    """Commande directe pour l'axe slide"""
-    data = request.get_json()
-    value = data.get('value', 0.5)
-    send_osc_message('/axis_slide', value)
-    return "ok"
-
-@app.route('/api/axis_pan', methods=['POST'])
-def api_axis_pan():
-    """Commande directe pour l'axe pan"""
-    data = request.get_json()
-    value = data.get('value', 0.5)
-    send_osc_message('/axis_pan', value)
-    return "ok"
-
-@app.route('/api/axis_tilt', methods=['POST'])
-def api_axis_tilt():
-    """Commande directe pour l'axe tilt"""
-    data = request.get_json()
-    value = data.get('value', 0.5)
-    send_osc_message('/axis_tilt', value)
-    return "ok"
-
-@app.route('/api/axis_zoom', methods=['POST'])
-def api_axis_zoom():
-    """Commande directe pour l'axe zoom"""
-    data = request.get_json()
-    value = data.get('value', 0.5)
-    send_osc_message('/axis_zoom', value)
-    return "ok"
-
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")
-    print(f"OSC Target: {ESP32_IP}:{ESP32_OSC_PORT}")
+    print(f"OSC Target: {ESP32_IP}:{ESP32_PORT}")
     print(f"Web interface: http://localhost:{FLASK_PORT}")
     
     # Démarrer le thread joystick
     _start_joystick_thread()
     
-    # Démarrer Flask (sans auto-reload pour éviter les redémarrages du thread joystick)
-    app.run(debug=False, use_reloader=False, host='0.0.0.0', port=FLASK_PORT)
+    # Démarrer Flask
+    app.run(debug=True, host='0.0.0.0', port=FLASK_PORT)

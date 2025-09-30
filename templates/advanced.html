@@ -382,14 +382,34 @@
                     </div>
                 </div>
                 
+  <!-- Homing / StallGuard -->
+  <div class="panel">
+    <h3>🏠 Homing Slide (TMC2209 StallGuard)</h3>
+    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+      <button class="btn" id="btnSlideHome">🏠 Home Slide</button>
+      <label for="sgthrsRange">SGTHRS:</label>
+      <input type="range" id="sgthrsRange" min="0" max="255" value="8" step="1" style="width:220px">
+      <span id="sgthrsVal">8</span>
+    </div>
+    <div class="hint">Le homing utilise StallGuard (spreadCycle, TCOOLTHRS max). Ajuste SGTHRS si nécessaire.</div>
+  </div>
+
                 <div class="control-group">
                     <label>Duration (seconds):</label>
                     <input type="number" id="presetDuration" value="2.0" min="0.1" max="200.0" step="0.1">
                 </div>
                 
             <div class="preset-controls">
-                <button class="btn btn-warning" onclick="saveCurrentPreset()">💾 Save to Selected</button>
                 <button class="btn btn-success" onclick="recallSelectedPreset()">▶️ Recall Selected</button>
+                <button class="btn" onclick="storeRealPreset()">💾 Store (positions réelles)</button>
+                <select id="presetMode" class="btn">
+                    <option value="abs">Preset Mode: Absolute</option>
+                    <option value="follow">Preset Mode: Follow Slide</option>
+                </select>
+                <select id="slidePolicy" class="btn">
+                    <option value="KEEP_AB">Recall Slide: KEEP_AB</option>
+                    <option value="GOTO_THEN_RESUME">Recall Slide: GOTO_THEN_RESUME</option>
+                </select>
             </div>
             </div>
             
@@ -402,6 +422,7 @@
                         <canvas id="joyCanvas" width="180" height="180"></canvas>
                         <div class="value-display">X: <span id="joyX">0.00</span> | Y: <span id="joyY">0.00</span></div>
                         <div id="joyHint" class="hint">Recherche d'un joystick USB…</div>
+            <button class="btn" id="joyReconnectBtn" title="Rescanner le joystick" style="margin-top:8px">🔁 Reconnect Joystick</button>
                     </div>
 
                     <!-- Fallback sliders (cachés si joystick connecté) -->
@@ -587,6 +608,14 @@
     </div>
 
     <script>
+document.getElementById('joyReconnectBtn')?.addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/joystick/rescan', { method: 'POST' });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+  } catch (e) {
+    console.warn('Rescan joystick failed', e);
+  }
+});
         // Slider event listeners
         document.getElementById('panOffset').addEventListener('input', function() {
             const value = parseFloat(this.value);
@@ -838,60 +867,39 @@
                 }
             });
         }
-        
-        function saveCurrentPreset() {
-            if (selectedPreset === null) {
-                alert('Veuillez d\'abord sélectionner un preset');
-                return;
-            }
-            
-            const pan = parseFloat(document.getElementById('axisPan').value);
-            const tilt = parseFloat(document.getElementById('axisTilt').value);
-            const zoom = parseFloat(document.getElementById('axisZoom').value);
-            const slide = parseFloat(document.getElementById('axisSlide').value);
-            
-            // Convert to steps (assuming 0-1 maps to min-max limits)
-            const panSteps = Math.round(pan * 20000 - 10000); // Example conversion
-            const tiltSteps = Math.round(tilt * 20000 - 10000);
-            const zoomSteps = Math.round(zoom * 40000 - 20000);
-            const slideSteps = Math.round(slide * 20000 - 10000);
-            
-            fetch('/api/preset/set', {
+
+        // Store des positions réelles dans le preset sélectionné
+        function storeRealPreset() {
+            if (selectedPreset === null) { alert('Sélectionne un preset'); return; }
+            fetch('/api/preset/store', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    id: selectedPreset, // Save to selected preset
-                    pan: panSteps,
-                    tilt: tiltSteps,
-                    zoom: zoomSteps,
-                    slide: slideSteps
-                })
-            }).then(response => {
-                if (response.ok) {
-                    // Marquer le preset comme sauvé temporairement (rouge pendant 2s)
-                    const presetBtn = document.querySelector(`[data-preset="${selectedPreset}"]`);
-                    presetBtn.classList.remove('selected');
-                    presetBtn.classList.add('saved');
-                    console.log(`Preset ${selectedPreset} sauvegardé avec succès`);
-                    
-                    // Après 2 secondes, décider de l'état final
-                    setTimeout(() => {
-                        // Si on est toujours sur le même preset, le garder rouge (saved)
-                        // Sinon, le remettre en blanc
-                        if (selectedPreset === parseInt(presetBtn.dataset.preset)) {
-                            // On est toujours sur ce preset, le garder en rouge (saved)
-                            console.log(`Preset ${selectedPreset} reste sauvé`);
-                        } else {
-                            // On a changé de preset, remettre en blanc
-                            presetBtn.classList.remove('saved');
-                            console.log(`Preset ${selectedPreset} remis en blanc`);
-                        }
-                    }, 2000);
-                } else {
-                    alert('Erreur lors de la sauvegarde du preset');
-                }
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ id: selectedPreset })
             });
         }
+
+        // Changement de mode du preset sélectionné
+        document.addEventListener('change', (e) => {
+            if (e.target && e.target.id === 'presetMode') {
+                if (selectedPreset === null) return;
+                const mode = document.getElementById('presetMode').value; // 'abs'|'follow'
+                fetch('/api/preset/mode', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ id: selectedPreset, mode: mode })
+                });
+            }
+            if (e.target && e.target.id === 'slidePolicy') {
+                const v = document.getElementById('slidePolicy').value; // 'KEEP_AB'|'GOTO_THEN_RESUME'
+                const code = (v === 'GOTO_THEN_RESUME') ? 1 : 0;
+                fetch('/api/preset/recall_policy', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ slide: code })
+                });
+            }
+        });
+        
         
         
         function resetOffsets() {
@@ -1061,6 +1069,29 @@
                 setTimeout(pollJoystick, 33);
             }
         }
+        //==================== Homing handlers ====================
+        const sgInput = document.getElementById('sgthrsRange');
+        const sgVal   = document.getElementById('sgthrsVal');
+        if (sgInput && sgVal) {
+            sgInput.addEventListener('input', () => {
+                sgVal.textContent = String(parseInt(sgInput.value, 10));
+            });
+            sgInput.addEventListener('change', () => {
+                const v = parseInt(sgInput.value, 10) || 8;
+                fetch('/api/slide/sgthrs', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ value: v })
+                });
+            });
+        }
+        const btnHome = document.getElementById('btnSlideHome');
+        if (btnHome) {
+            btnHome.addEventListener('click', () => {
+                fetch('/api/slide/home', { method: 'POST' });
+            });
+        }
+
         pollJoystick();
     </script>
 </body>

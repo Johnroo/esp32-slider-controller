@@ -159,7 +159,7 @@ AxisConfig cfg[NUM_MOTORS] = {
   // Zoom
   {-20000, 20000, 400, 16, 20000, 8000, 0, false, true, false},
   // Slide
-  {-20000, 20000, 1700, 16, 20000, 8000, 0, false, true, false}
+  {-20000, 20000, 1800, 8, 20000, 8000, 0, false, true, false}
 };
 
 //==================== Objets moteurs ====================
@@ -191,145 +191,161 @@ void setupDriversTMC() {
   }
 }
 
-// Homing du slide via StallGuard
+// Homing du slide via StallGuard4 (TMC2209)
+// StallGuard4 fonctionne en StealthChop (spreadCycle = false)
+
+#define SLIDE_INDEX     3
+#define HOMING_SPEED    9000     // steps/s (2000-4000 range pour SG4)
+#define HOMING_ACCEL    90000    // accel élevée pour atteindre vitesse rapidement
+#define SG_THRESHOLD    100       // SGTHRS (0-255, 10-15 range, plus petit = plus sensible)
+#define SG_DETECT       100      // seuil SG_RESULT pour détecter stall (commencer à ~100)
+#define HOMING_TIMEOUT  20000    // ms
+#define BACKOFF_STEPS   300      // pas de recul après détection
+
 void home_slide() {
-  // 1) Suspendre les modes automatiques (AB, follow, preset sync)
-  bool wasAB = slideAB.enabled;
-  bool wasFollow = follow.enabled;
+  int i = SLIDE_INDEX;
+  if (!steppers[i]) return;
+
+  Serial.println("🏠 HOMING SLIDE START (StallGuard4)");
+
+  // Désactiver tous les modes automatiques
   slideAB.enabled = false;
+  sync_move.active = false;
   follow.enabled = false;
-  if (sync_move.active) {
-    sync_move.active = false;
-    Serial.println("\xE2\x8F\xB9\xEF\xB8\x8F Annulation du mouvement synchronisé (preset) pour homing");
-  }
-  Serial.println("\xF0\x9F\x8F\xA0 D\xC3\xA9but du homing du slide...");
 
-  // 2) Configurer StallGuard fiable: spreadCycle, TCOOLTHRS max, SGTHRS
-  drivers[3]->en_spreadCycle(true);     // forcer spreadCycle pendant le homing
-  drivers[3]->TCOOLTHRS(0xFFFFF);       // StallGuard actif à basse et moyenne vitesse
-  drivers[3]->SGTHRS(slide_sg_threshold);
+  // Sauvegarder la configuration actuelle
+  long original_current = cfg[i].current_ma;
+  long original_accel = cfg[i].max_accel;
+  long original_speed = cfg[i].max_speed;
 
-  // Vitesse / accel mod\xC3\xA9r\xC3\xA9es pour limiter les chocs
-  steppers[3]->setSpeedInHz(cfg[3].max_speed / 2);
-  steppers[3]->setAcceleration(cfg[3].max_accel / 2);
+  // Augmenter temporairement le courant (+20%)
+  long homing_current = original_current + (original_current * 20 / 100);
+  drivers[i]->rms_current(homing_current);
+  Serial.printf("⚡ Courant homing: %ld mA (+20%%)\n", homing_current);
 
-  // 3) Aller vers la but\xC3\xA9e basse jusqu'au stall
-  steppers[3]->moveTo(cfg[3].min_limit - 2000);  // cible largement au-del\xC3\xA0
-  long minPosition = 0;
-  {
-    const uint16_t sg_floor = (slide_sg_threshold > 10) ? (slide_sg_threshold / 2) : 5;
-    uint32_t t0 = millis();
-    int consec_stall = 0; // nécessite plusieurs échantillons consécutifs après démarrage
-    for (;;) {
-      uint16_t sg = drivers[3]->SG_RESULT();
-      long cur = steppers[3]->getCurrentPosition();
-      long tgt = steppers[3]->targetPos();
-      // N'activer la détection de stall qu'après démarrage effectif et un délai de grâce
-      if (steppers[3]->isRunning() && (millis() - t0 > 300)) {
-        if (sg == 0 || sg <= sg_floor) {
-          consec_stall++;
-        } else {
-          consec_stall = 0;
-        }
-      } else {
-        consec_stall = 0;
-      }
-      if (consec_stall >= 3) { // blocage confirmé
-        steppers[3]->forceStopAndNewPosition(cur);
-        steppers[3]->stopMove();
-        steppers[3]->enableOutputs();
-        minPosition = cur;
-        Serial.println("\xF0\x9F\x94\xB4 StallGuard d\xC3\xA9tect\xC3\xA9 en but\xC3\xA9e basse");
-        break;
-      }
-      if (labs(tgt - cur) < 4) { // arriv\xC3\xA9 sans stall
-        minPosition = cur;
-        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Basse atteinte sans stall (v\xC3\xA9rifie SGTHRS)");
-        break;
-      }
-      if (millis() - t0 > 20000) { // garde-fou 20s
-        minPosition = cur;
-        steppers[3]->forceStopAndNewPosition(cur);
-        steppers[3]->stopMove();
-        steppers[3]->enableOutputs();
-        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout but\xC3\xA9e basse");
-        break;
-      }
-      delay(5);
+  // Configuration pour StallGuard4 (StealthChop requis)
+  drivers[i]->en_spreadCycle(false);  // StealthChop pour StallGuard4
+  drivers[i]->TPWMTHRS(0xFFFFF);      // Garder StealthChop à haute vitesse
+  drivers[i]->SGTHRS(SG_THRESHOLD);   // Sensibilité StallGuard
+  drivers[i]->TCOOLTHRS(0xFFFFF);     // Activer SG même à basse vitesse
+
+  // Configuration vitesse/accel pour homing
+  steppers[i]->setAcceleration(HOMING_ACCEL);
+  steppers[i]->setSpeedInHz(HOMING_SPEED);
+
+  Serial.printf("🎯 Config: Speed=%d, Accel=%d, SGTHRS=%d, SG_DETECT=%d\n", 
+                 HOMING_SPEED, HOMING_ACCEL, SG_THRESHOLD, SG_DETECT);
+
+  // ------------------ PHASE INF (vers butée inférieure) ------------------
+  Serial.println("▶️ Vers butée INF...");
+  steppers[i]->runBackward();
+  uint32_t t0 = millis();
+  uint32_t last_sg_log = 0;
+  bool stall_detected = false;
+  
+  while (millis() - t0 < HOMING_TIMEOUT && !stall_detected) {
+    uint16_t sg = drivers[i]->SG_RESULT();
+    uint32_t now = millis();
+    
+    // Log SG_RESULT toutes les 300ms pour debug
+    if (now - last_sg_log > 300) {
+      Serial.printf("SG_RESULT: %u (seuil: %u)\n", sg, SG_DETECT);
+      last_sg_log = now;
     }
-  }
-  cfg[3].min_limit = minPosition;
-
-  // 4) Aller vers la but\xC3\xA9e haute jusqu'au stall
-  steppers[3]->moveTo(cfg[3].max_limit + 2000);
-  long maxPosition = 0;
-  {
-    const uint16_t sg_floor = (slide_sg_threshold > 10) ? (slide_sg_threshold / 2) : 5;
-    uint32_t t0 = millis();
-    int consec_stall = 0;
-    for (;;) {
-      uint16_t sg = drivers[3]->SG_RESULT();
-      long cur = steppers[3]->getCurrentPosition();
-      long tgt = steppers[3]->targetPos();
-      if (steppers[3]->isRunning() && (millis() - t0 > 300)) {
-        if (sg == 0 || sg <= sg_floor) {
-          consec_stall++;
-        } else {
-          consec_stall = 0;
-        }
-      } else {
-        consec_stall = 0;
-      }
-      if (consec_stall >= 3) {
-        steppers[3]->forceStopAndNewPosition(cur);
-        steppers[3]->stopMove();
-        steppers[3]->enableOutputs();
-        maxPosition = cur;
-        Serial.println("\xF0\x9F\x94\xB4 StallGuard d\xC3\xA9tect\xC3\xA9 en but\xC3\xA9e haute");
-        break;
-      }
-      if (labs(tgt - cur) < 4) { // arriv\xC3\xA9 sans stall
-        maxPosition = cur;
-        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Haute atteinte sans stall (v\xC3\xA9rifie SGTHRS)");
-        break;
-      }
-      if (millis() - t0 > 20000) { // garde-fou 20s
-        maxPosition = cur;
-        steppers[3]->forceStopAndNewPosition(cur);
-        steppers[3]->stopMove();
-        steppers[3]->enableOutputs();
-        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout but\xC3\xA9e haute");
-        break;
-      }
-      delay(5);
+    
+    // Détecter stall après 500ms de mouvement
+    if (millis() - t0 > 500 && sg < SG_DETECT) {
+      Serial.printf("💥 INF Stall détecté (SG=%u < %u)\n", sg, SG_DETECT);
+      steppers[i]->forceStop();
+      stall_detected = true;
     }
+    delay(2);
   }
-  cfg[3].max_limit = maxPosition;
+  
+  if (!stall_detected) {
+    Serial.println("⚠️ Timeout INF - pas de stall détecté");
+  }
+  
+  long minPos = steppers[i]->getCurrentPosition();
+  Serial.printf("📍 Position INF: %ld\n", minPos);
 
-  // 5) Aller au centre puis z\xC3\xA9ro logique
-  long midPosition = (minPosition + maxPosition) / 2;
-  steppers[3]->moveTo(midPosition);
-  {
-    uint32_t t0 = millis();
-    while (steppers[3]->isRunning()) {
-      if (millis() - t0 > 5000) {
-        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout moveTo centre");
-        break;
-      }
-      delay(5);
+  // Recul pour se dégager de la butée
+  Serial.printf("↩️ Recul de %d pas...\n", BACKOFF_STEPS);
+  steppers[i]->move(BACKOFF_STEPS);
+  while (steppers[i]->isRunning()) delay(2);
+
+  // ------------------ PHASE SUP (vers butée supérieure) ------------------
+  Serial.println("▶️ Vers butée SUP...");
+  steppers[i]->runForward();
+  t0 = millis();
+  last_sg_log = 0;
+  stall_detected = false;
+  
+  while (millis() - t0 < HOMING_TIMEOUT && !stall_detected) {
+    uint16_t sg = drivers[i]->SG_RESULT();
+    uint32_t now = millis();
+    
+    // Log SG_RESULT toutes les 300ms pour debug
+    if (now - last_sg_log > 300) {
+      Serial.printf("SG_RESULT: %u (seuil: %u)\n", sg, SG_DETECT);
+      last_sg_log = now;
     }
+    
+    // Détecter stall après 500ms de mouvement
+    if (millis() - t0 > 500 && sg < SG_DETECT) {
+      Serial.printf("💥 SUP Stall détecté (SG=%u < %u)\n", sg, SG_DETECT);
+      steppers[i]->forceStop();
+      stall_detected = true;
+    }
+    delay(2);
   }
-  // Nettoyage d'\xC3\xA9tat FastAccelStepper et restauration du driver
-  steppers[3]->stopMove();          // s'assurer que la queue est vide
-  steppers[3]->enableOutputs();     // r\xC3\xA9activer explicitement au cas o\xC3\xB9
-  drivers[3]->en_spreadCycle(false); // revenir au mode normal si besoin
-  steppers[3]->setCurrentPosition(0);
-  Serial.printf("\xE2\x9C\x85 Homing termin\xC3\xA9. min=%ld max=%ld centre=0\n", cfg[3].min_limit, cfg[3].max_limit);
+  
+  if (!stall_detected) {
+    Serial.println("⚠️ Timeout SUP - pas de stall détecté");
+  }
+  
+  long maxPos = steppers[i]->getCurrentPosition();
+  Serial.printf("📍 Position SUP: %ld\n", maxPos);
 
-  // R\xC3\xA9tablir follow; laisser AB OFF pour que l'utilisateur recalcule A/B si besoin
-  follow.enabled = wasFollow;
-  (void)wasAB; // volontairement ne pas r\xC3\xA9activer automatiquement
+  // ------------------ CALCUL CENTRE ET LIMITES ------------------
+  long center = (minPos + maxPos) / 2;
+  long range = maxPos - minPos;
+  
+  Serial.printf("📏 Course détectée: %ld pas (%.1f mm)\n", range, range * 0.1); // Assumant 0.1mm/pas
+  
+  // Aller au centre
+  Serial.printf("🎯 Aller au centre: %ld\n", center);
+  steppers[i]->moveTo(center);
+  while (steppers[i]->isRunning()) delay(2);
+  
+  // Définir position 0 au centre
+  steppers[i]->setCurrentPosition(0);
+  
+  // Calculer limites relatives au centre
+  cfg[i].min_limit = minPos - center;
+  cfg[i].max_limit = maxPos - center;
+  
+  Serial.printf("✅ Homing terminé!\n");
+  Serial.printf("   Centre: %ld (position 0)\n", center);
+  Serial.printf("   Limites: [%ld, %ld]\n", cfg[i].min_limit, cfg[i].max_limit);
+  Serial.printf("   Course: %ld pas\n", cfg[i].max_limit - cfg[i].min_limit);
+
+  // ------------------ RESTAURATION CONFIG NORMALE ------------------
+  Serial.println("🔄 Restauration configuration normale...");
+  
+  // Restaurer courant normal
+  drivers[i]->rms_current(original_current);
+  
+  // Restaurer vitesse/accel normales
+  steppers[i]->setAcceleration(original_accel);
+  steppers[i]->setSpeedInHz(original_speed);
+  
+  // Le driver reste en StealthChop (spreadCycle = false) comme partout ailleurs
+  // Pas besoin de restaurer le mode car on utilise StealthChop partout
+  
+  Serial.println("✅ Homing terminé avec succès!");
 }
+
 
 //==================== NEW: Helpers ====================
 static inline long clampL(long v, long vmin, long vmax){ return v < vmin ? vmin : (v > vmax ? vmax : v); }
