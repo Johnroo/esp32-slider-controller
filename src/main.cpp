@@ -225,6 +225,8 @@ void home_slide() {
       long tgt = steppers[3]->targetPos();
       if (sg <= sg_floor) { // blocage fort d\xC3\xA9tect\xC3\xA9
         steppers[3]->forceStopAndNewPosition(cur);
+        steppers[3]->stopMove();
+        steppers[3]->enableOutputs();
         minPosition = cur;
         Serial.println("\xF0\x9F\x94\xB4 StallGuard d\xC3\xA9tect\xC3\xA9 en but\xC3\xA9e basse");
         break;
@@ -237,6 +239,8 @@ void home_slide() {
       if (millis() - t0 > 20000) { // garde-fou 20s
         minPosition = cur;
         steppers[3]->forceStopAndNewPosition(cur);
+        steppers[3]->stopMove();
+        steppers[3]->enableOutputs();
         Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout but\xC3\xA9e basse");
         break;
       }
@@ -257,6 +261,8 @@ void home_slide() {
       long tgt = steppers[3]->targetPos();
       if (sg <= sg_floor) {
         steppers[3]->forceStopAndNewPosition(cur);
+        steppers[3]->stopMove();
+        steppers[3]->enableOutputs();
         maxPosition = cur;
         Serial.println("\xF0\x9F\x94\xB4 StallGuard d\xC3\xA9tect\xC3\xA9 en but\xC3\xA9e haute");
         break;
@@ -269,6 +275,8 @@ void home_slide() {
       if (millis() - t0 > 20000) { // garde-fou 20s
         maxPosition = cur;
         steppers[3]->forceStopAndNewPosition(cur);
+        steppers[3]->stopMove();
+        steppers[3]->enableOutputs();
         Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout but\xC3\xA9e haute");
         break;
       }
@@ -280,8 +288,15 @@ void home_slide() {
   // 5) Aller au centre puis z\xC3\xA9ro logique
   long midPosition = (minPosition + maxPosition) / 2;
   steppers[3]->moveTo(midPosition);
-  while (steppers[3]->isRunning()) {
-    delay(5);
+  {
+    uint32_t t0 = millis();
+    while (steppers[3]->isRunning()) {
+      if (millis() - t0 > 5000) {
+        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout moveTo centre");
+        break;
+      }
+      delay(5);
+    }
   }
   // Nettoyage d'\xC3\xA9tat FastAccelStepper et restauration du driver
   steppers[3]->stopMove();          // s'assurer que la queue est vide
