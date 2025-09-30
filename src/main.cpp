@@ -219,11 +219,22 @@ void home_slide() {
   {
     const uint16_t sg_floor = (slide_sg_threshold > 10) ? (slide_sg_threshold / 2) : 5;
     uint32_t t0 = millis();
+    int consec_stall = 0; // nécessite plusieurs échantillons consécutifs après démarrage
     for (;;) {
       uint16_t sg = drivers[3]->SG_RESULT();
       long cur = steppers[3]->getCurrentPosition();
       long tgt = steppers[3]->targetPos();
-      if (sg <= sg_floor) { // blocage fort d\xC3\xA9tect\xC3\xA9
+      // N'activer la détection de stall qu'après démarrage effectif et un délai de grâce
+      if (steppers[3]->isRunning() && (millis() - t0 > 300)) {
+        if (sg == 0 || sg <= sg_floor) {
+          consec_stall++;
+        } else {
+          consec_stall = 0;
+        }
+      } else {
+        consec_stall = 0;
+      }
+      if (consec_stall >= 3) { // blocage confirmé
         steppers[3]->forceStopAndNewPosition(cur);
         steppers[3]->stopMove();
         steppers[3]->enableOutputs();
@@ -255,11 +266,21 @@ void home_slide() {
   {
     const uint16_t sg_floor = (slide_sg_threshold > 10) ? (slide_sg_threshold / 2) : 5;
     uint32_t t0 = millis();
+    int consec_stall = 0;
     for (;;) {
       uint16_t sg = drivers[3]->SG_RESULT();
       long cur = steppers[3]->getCurrentPosition();
       long tgt = steppers[3]->targetPos();
-      if (sg <= sg_floor) {
+      if (steppers[3]->isRunning() && (millis() - t0 > 300)) {
+        if (sg == 0 || sg <= sg_floor) {
+          consec_stall++;
+        } else {
+          consec_stall = 0;
+        }
+      } else {
+        consec_stall = 0;
+      }
+      if (consec_stall >= 3) {
         steppers[3]->forceStopAndNewPosition(cur);
         steppers[3]->stopMove();
         steppers[3]->enableOutputs();
