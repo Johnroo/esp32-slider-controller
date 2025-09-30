@@ -16,7 +16,15 @@
 #define NUM_MOTORS 4
 
 //==================== NEW: Presets, offsets, mapping ====================
-struct Preset { long p, t, z, s; };
+enum PresetMode : uint8_t { PRESET_ABSOLUTE = 0, PRESET_FOLLOW_SLIDE = 1 };
+
+struct Preset {
+  long p, t, z, s;          // positions absolues
+  long pan_anchor;          // ancre P relative au slide
+  long tilt_anchor;         // ancre T relative au slide
+  uint8_t mode;             // PRESET_ABSOLUTE ou PRESET_FOLLOW_SLIDE
+};
+
 Preset presets[8];         // utilitaires: /preset/set i p t z s
 int activePreset = -1;
 
@@ -30,6 +38,25 @@ volatile long tilt_offset_latched = 0;
 
 long PAN_OFFSET_RANGE  = 800;   // max offset +/- (configurable via OSC)
 long TILT_OFFSET_RANGE = 800;
+
+// Baseline d'offset au recall (Δoffset = latched - baseline)
+struct OffsetSession {
+  long pan0 = 0;
+  long tilt0 = 0;
+} offset_session;
+
+const long OFFSET_DEADBAND_STEPS = 2; // anti-bruit
+static inline long odband(long v){ return (labs(v) <= OFFSET_DEADBAND_STEPS) ? 0 : v; }
+
+static inline long eff_pan_offset()  { return odband(pan_offset_latched  - offset_session.pan0); }
+static inline long eff_tilt_offset() { return odband(tilt_offset_latched - offset_session.tilt0); }
+
+static inline long active_pan_offset(bool recall_phase){ 
+  return recall_phase ? eff_pan_offset() : pan_offset_steps; 
+}
+static inline long active_tilt_offset(bool recall_phase){ 
+  return recall_phase ? eff_tilt_offset() : tilt_offset_steps; 
+}
 
 // Mapping linéaire slide -> compensation pan/tilt (en steps)
 long PAN_AT_SLIDE_MIN  = +800;  // ex: +800 à gauche
@@ -59,6 +86,25 @@ struct Follow {
   long pan_anchor  = 0;
   long tilt_anchor = 0;
 } follow;
+
+// Interpolation d'ancres pendant un recall autour de l'autopan
+struct AnchorMorph {
+  bool active = false;
+  long p0 = 0, t0 = 0;
+  long p1 = 0, t1 = 0;
+  uint32_t t0_ms = 0, T_ms = 0;
+} anchor_morph;
+
+// Politique de recall du slide
+enum class SlideRecallPolicy : uint8_t { KEEP_AB = 0, GOTO_THEN_RESUME = 1 };
+struct RecallPolicy {
+  SlideRecallPolicy slide = SlideRecallPolicy::KEEP_AB;
+} recallPolicy;
+
+//==================== Homing Slide (StallGuard) ====================
+// Permettre un homing sans capteur sur l'axe slide via StallGuard (TMC2209)
+bool    doAutoHomeSlide     = false;   // lancer automatiquement au démarrage si true
+uint8_t slide_sg_threshold  = 8;       // SGTHRS par défaut (sensibilité moyenne)
 
 // Mode AB infini pour le slide
 struct SlideAB {
@@ -107,13 +153,13 @@ struct AxisConfig {
 
 AxisConfig cfg[NUM_MOTORS] = {
   // Pan
-  {-10000, 10000, 800, 16, 20000, 8000, 0, false, true, false},
+  {-10000, 10000, 1200, 16, 20000, 8000, 0, false, true, false},
   // Tilt  
-  {-10000, 10000, 800, 16, 20000, 8000, 0, false, true, false},
+  {-10000, 10000, 1200, 16, 20000, 8000, 0, false, true, false},
   // Zoom
-  {-20000, 20000, 800, 16, 20000, 8000, 0, false, true, false},
+  {-20000, 20000, 400, 16, 20000, 8000, 0, false, true, false},
   // Slide
-  {-20000, 20000, 800, 16, 20000, 8000, 0, false, true, false}
+  {-20000, 20000, 1700, 16, 20000, 8000, 0, false, true, false}
 };
 
 //==================== Objets moteurs ====================
@@ -143,6 +189,110 @@ void setupDriversTMC() {
     // d->coolstep_en(cfg[i].coolstep);  // Pas disponible sur TMC2209
     // d->stallguard(cfg[i].stallguard);  // Pas disponible sur TMC2209
   }
+}
+
+// Homing du slide via StallGuard
+void home_slide() {
+  // 1) Suspendre les modes automatiques (AB, follow, preset sync)
+  bool wasAB = slideAB.enabled;
+  bool wasFollow = follow.enabled;
+  slideAB.enabled = false;
+  follow.enabled = false;
+  if (sync_move.active) {
+    sync_move.active = false;
+    Serial.println("\xE2\x8F\xB9\xEF\xB8\x8F Annulation du mouvement synchronisé (preset) pour homing");
+  }
+  Serial.println("\xF0\x9F\x8F\xA0 D\xC3\xA9but du homing du slide...");
+
+  // 2) Configurer StallGuard fiable: spreadCycle, TCOOLTHRS max, SGTHRS
+  drivers[3]->en_spreadCycle(true);     // forcer spreadCycle pendant le homing
+  drivers[3]->TCOOLTHRS(0xFFFFF);       // StallGuard actif à basse et moyenne vitesse
+  drivers[3]->SGTHRS(slide_sg_threshold);
+
+  // Vitesse / accel mod\xC3\xA9r\xC3\xA9es pour limiter les chocs
+  steppers[3]->setSpeedInHz(cfg[3].max_speed / 2);
+  steppers[3]->setAcceleration(cfg[3].max_accel / 2);
+
+  // 3) Aller vers la but\xC3\xA9e basse jusqu'au stall
+  steppers[3]->moveTo(cfg[3].min_limit - 2000);  // cible largement au-del\xC3\xA0
+  long minPosition = 0;
+  {
+    const uint16_t sg_floor = (slide_sg_threshold > 10) ? (slide_sg_threshold / 2) : 5;
+    uint32_t t0 = millis();
+    for (;;) {
+      uint16_t sg = drivers[3]->SG_RESULT();
+      long cur = steppers[3]->getCurrentPosition();
+      long tgt = steppers[3]->targetPos();
+      if (sg <= sg_floor) { // blocage fort d\xC3\xA9tect\xC3\xA9
+        steppers[3]->forceStopAndNewPosition(cur);
+        minPosition = cur;
+        Serial.println("\xF0\x9F\x94\xB4 StallGuard d\xC3\xA9tect\xC3\xA9 en but\xC3\xA9e basse");
+        break;
+      }
+      if (labs(tgt - cur) < 4) { // arriv\xC3\xA9 sans stall
+        minPosition = cur;
+        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Basse atteinte sans stall (v\xC3\xA9rifie SGTHRS)");
+        break;
+      }
+      if (millis() - t0 > 20000) { // garde-fou 20s
+        minPosition = cur;
+        steppers[3]->forceStopAndNewPosition(cur);
+        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout but\xC3\xA9e basse");
+        break;
+      }
+      delay(5);
+    }
+  }
+  cfg[3].min_limit = minPosition;
+
+  // 4) Aller vers la but\xC3\xA9e haute jusqu'au stall
+  steppers[3]->moveTo(cfg[3].max_limit + 2000);
+  long maxPosition = 0;
+  {
+    const uint16_t sg_floor = (slide_sg_threshold > 10) ? (slide_sg_threshold / 2) : 5;
+    uint32_t t0 = millis();
+    for (;;) {
+      uint16_t sg = drivers[3]->SG_RESULT();
+      long cur = steppers[3]->getCurrentPosition();
+      long tgt = steppers[3]->targetPos();
+      if (sg <= sg_floor) {
+        steppers[3]->forceStopAndNewPosition(cur);
+        maxPosition = cur;
+        Serial.println("\xF0\x9F\x94\xB4 StallGuard d\xC3\xA9tect\xC3\xA9 en but\xC3\xA9e haute");
+        break;
+      }
+      if (labs(tgt - cur) < 4) { // arriv\xC3\xA9 sans stall
+        maxPosition = cur;
+        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Haute atteinte sans stall (v\xC3\xA9rifie SGTHRS)");
+        break;
+      }
+      if (millis() - t0 > 20000) { // garde-fou 20s
+        maxPosition = cur;
+        steppers[3]->forceStopAndNewPosition(cur);
+        Serial.println("\xE2\x9A\xA0\xEF\xB8\x8F Timeout but\xC3\xA9e haute");
+        break;
+      }
+      delay(5);
+    }
+  }
+  cfg[3].max_limit = maxPosition;
+
+  // 5) Aller au centre puis z\xC3\xA9ro logique
+  long midPosition = (minPosition + maxPosition) / 2;
+  steppers[3]->moveTo(midPosition);
+  while (steppers[3]->isRunning()) {
+    delay(5);
+  }
+  // Nettoyage d'\xC3\xA9tat FastAccelStepper et restauration du driver
+  steppers[3]->stopMove();          // s'assurer que la queue est vide
+  steppers[3]->enableOutputs();     // r\xC3\xA9activer explicitement au cas o\xC3\xB9
+  drivers[3]->en_spreadCycle(false); // revenir au mode normal si besoin
+  steppers[3]->setCurrentPosition(0);
+  Serial.printf("\xE2\x9C\x85 Homing termin\xC3\xA9. min=%ld max=%ld centre=0\n", cfg[3].min_limit, cfg[3].max_limit);
+
+  // R\xC3\xA9tablir follow; laisser AB OFF pour que l'utilisateur recalcule A/B si besoin
+  follow.enabled = wasFollow;
+  (void)wasAB; // volontairement ne pas r\xC3\xA9activer automatiquement
 }
 
 //==================== NEW: Helpers ====================
@@ -272,8 +422,19 @@ void coordinator_tick(){
   if (dt_ms == 0) return;
   last_ms = now;
 
-  // 1) Mode AB: fait aller le slide A<->B en boucle, avec profil min-jerk
-  if (slideAB.enabled){
+  // Interpolation d’ancre min-jerk pour recall autour de l’autopan
+  if (anchor_morph.active) {
+    float tau = (float)(now - anchor_morph.t0_ms) / (float)anchor_morph.T_ms;
+    if (tau >= 1.0f) { tau = 1.0f; anchor_morph.active = false; }
+    float s = s_minjerk(tau);
+    follow.pan_anchor  = lround( lerp((float)anchor_morph.p0, (float)anchor_morph.p1, s) );
+    follow.tilt_anchor = lround( lerp((float)anchor_morph.t0, (float)anchor_morph.t1, s) );
+    follow.valid = true; // ancres imposées
+  }
+
+  // Interpolation d’ancre min-jerk pour recall autour de l’autopan
+  
+  if (slideAB.enabled && !sync_move.active){
     float tau = (float)(now - slideAB.t0_ms) / (float)slideAB.T_ms;
     if (tau >= 1.0f){ slideAB.dir = -slideAB.dir; slideAB.t0_ms = now; tau = 0.0f; }
     float s = s_minjerk(tau);
@@ -288,8 +449,9 @@ void coordinator_tick(){
       if (!follow.valid) follow_refresh_anchor();
       long pComp = pan_comp_from_slide(Sgoal);
       long tComp = tilt_comp_from_slide(Sgoal);
-      long Pgoal = clampL(follow.pan_anchor  + pComp + pan_offset_steps,  cfg[0].min_limit, cfg[0].max_limit);
-      long Tgoal = clampL(follow.tilt_anchor + tComp + tilt_offset_steps, cfg[1].min_limit, cfg[1].max_limit);
+      bool in_recall = sync_move.active || anchor_morph.active;
+      long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
+      long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
       steppers[0]->moveTo(Pgoal);
       steppers[1]->moveTo(Tgoal);
     }
@@ -327,8 +489,9 @@ void coordinator_tick(){
         if (!follow.valid) follow_refresh_anchor();
         long pComp = pan_comp_from_slide(Sgoal);
         long tComp = tilt_comp_from_slide(Sgoal);
-        long Pgoal = clampL(follow.pan_anchor  + pComp + pan_offset_steps,  cfg[0].min_limit, cfg[0].max_limit);
-        long Tgoal = clampL(follow.tilt_anchor + tComp + tilt_offset_steps, cfg[1].min_limit, cfg[1].max_limit);
+        bool in_recall = sync_move.active || anchor_morph.active;
+        long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
+        long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
         
         // Ne PAS écraser un axe si le joystick le pilote déjà
         bool joyP = fabsf(joy_filt.pan)  > 0.001f;
@@ -347,6 +510,15 @@ void coordinator_tick(){
       // Fin de mouvement
       sync_move.active = false;
       follow.valid = false;   // re-anchor next time
+      
+      // Rephase AB après GOTO_THEN_RESUME pour éviter un saut
+      if (recallPolicy.slide == SlideRecallPolicy::GOTO_THEN_RESUME && slideAB.enabled) {
+        slideAB.t0_ms = millis();
+        long current_slide = steppers[3]->getCurrentPosition();
+        slideAB.dir = (abs(current_slide - slideAB.A) < abs(current_slide - slideAB.B)) ? +1 : -1;
+        Serial.println("🔄 AB rephased after GOTO_THEN_RESUME");
+      }
+      
       tau = 1.0f;
     }
     float s = s_minjerk(tau);
@@ -359,8 +531,8 @@ void coordinator_tick(){
     long pan_comp  = pan_comp_from_slide(slide_ref);
     long tilt_comp = tilt_comp_from_slide(slide_ref);
 
-    long pan_goal  = sync_move.goal_base[0] + pan_comp + pan_offset_steps;
-    long tilt_goal = sync_move.goal_base[1] + tilt_comp + tilt_offset_steps;
+    long pan_goal  = sync_move.goal_base[0] + pan_comp + eff_pan_offset();
+    long tilt_goal = sync_move.goal_base[1] + tilt_comp + eff_tilt_offset();
     long zoom_goal = sync_move.goal_base[2];
     long slide_goal= sync_move.goal_base[3];
 
@@ -573,6 +745,21 @@ void processOSC() {
       });
       
       //==================== NEW: Routes OSC avancées ====================
+      // Homing slide & StallGuard threshold
+      msg.dispatch("/slide/home", [](OSCMessage &m){
+        Serial.println("\xF0\x9F\x8F\xA0 Commande OSC: homing du slide");
+        home_slide();
+      });
+      msg.dispatch("/slide/sgthrs", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int thr = m.getInt(0);
+          if (thr < 0) thr = 0; if (thr > 255) thr = 255;
+          slide_sg_threshold = (uint8_t)thr;
+          drivers[3]->SGTHRS(slide_sg_threshold);
+          cfg[3].sgt = slide_sg_threshold;
+          Serial.printf("\xE2\x9A\x99\xEF\xB8\x8F Nouvelle SGTHRS (slide) = %d\n", slide_sg_threshold);
+        }
+      });
       msg.dispatch("/preset/set", [](OSCMessage &m){
         int i = m.getInt(0);
         presets[i].p = m.getInt(1);
@@ -582,22 +769,83 @@ void processOSC() {
         Serial.printf("Preset %d saved\n", i);
       });
 
+      // Store réel: capture positions courantes et calcule les ancres
+      msg.dispatch("/preset/store", [](OSCMessage &m){
+        int i = m.getInt(0);
+        long S = steppers[3]->getCurrentPosition();
+        long P = steppers[0]->getCurrentPosition();
+        long T = steppers[1]->getCurrentPosition();
+        long Z = steppers[2]->getCurrentPosition();
+
+        long pComp = pan_comp_from_slide(S);
+        long tComp = tilt_comp_from_slide(S);
+
+        presets[i].p = P; presets[i].t = T; presets[i].z = Z; presets[i].s = S;
+        presets[i].pan_anchor  = P - pComp;
+        presets[i].tilt_anchor = T - tComp;
+        presets[i].mode = follow.enabled ? PRESET_FOLLOW_SLIDE : PRESET_ABSOLUTE;
+
+        Serial.printf("\xF0\x9F\x92\xBE Store preset %d | ABS P:%ld T:%ld Z:%ld S:%ld | ANCHOR P:%ld T:%ld | mode:%d\n",
+                      i, P,T,Z,S, presets[i].pan_anchor, presets[i].tilt_anchor, presets[i].mode);
+      });
+
+      // Forcer le mode d'un preset
+      msg.dispatch("/preset/mode", [](OSCMessage &m){
+        int i = m.getInt(0);
+        int md = m.getInt(1);
+        presets[i].mode = (md==1) ? PRESET_FOLLOW_SLIDE : PRESET_ABSOLUTE;
+        Serial.printf("Preset %d mode=%d\n", i, presets[i].mode);
+      });
+
+      // Policy de recall slide
+      msg.dispatch("/preset/recall_policy", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int sp = m.getInt(0);
+          recallPolicy.slide = (sp == 1) ? SlideRecallPolicy::GOTO_THEN_RESUME : SlideRecallPolicy::KEEP_AB;
+          Serial.printf("Recall policy slide=%d\n", (int)recallPolicy.slide);
+        }
+      });
+
       msg.dispatch("/preset/recall", [](OSCMessage &m){
         int i = m.getInt(0);
         float Tsec = m.getFloat(1); if (Tsec <= 0) Tsec = 2.0f;
         activePreset = i;
 
-        // base goals = preset brut (sans offsets/couplage)
-        long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
-        for(int ax=0; ax<NUM_MOTORS; ++ax){
-          sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
-          sync_move.goal_base[ax] = clampL(base_goal[ax], cfg[ax].min_limit, cfg[ax].max_limit);
-        }
+        // Baseline des offsets au début du recall
+        offset_session.pan0  = pan_offset_latched;
+        offset_session.tilt0 = tilt_offset_latched;
+
         uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
-        sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
-        sync_move.t0_ms = millis();
-        sync_move.active = true;
-        Serial.printf("Recall preset %d in %u ms\n", i, sync_move.T_ms);
+
+        bool can_follow_recall = follow.enabled && slideAB.enabled && (presets[i].mode==PRESET_FOLLOW_SLIDE);
+        if (can_follow_recall && recallPolicy.slide == SlideRecallPolicy::KEEP_AB) {
+          // Morph des ancres autour de l'autopan AB : n'arme pas sync_move
+          anchor_morph.active = true;
+          anchor_morph.p0 = follow.pan_anchor;
+          anchor_morph.t0 = follow.tilt_anchor;
+          anchor_morph.p1 = presets[i].pan_anchor;
+          anchor_morph.t1 = presets[i].tilt_anchor;
+          anchor_morph.t0_ms = millis();
+          anchor_morph.T_ms  = Tms_req;
+          follow.valid = true;
+          Serial.printf("\xE2\x96\xBA Recall(FOLLOW+AB): morph anchors to P:%ld T:%ld in %u ms\n",
+                        anchor_morph.p1, anchor_morph.t1, anchor_morph.T_ms);
+        } else {
+          // Mouvement synchronisé normal (ABSOLUTE ou policy GOTO_THEN_RESUME)
+          long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
+
+          for(int ax=0; ax<NUM_MOTORS; ++ax){
+            sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
+            sync_move.goal_base[ax] = clampL(base_goal[ax], cfg[ax].min_limit, cfg[ax].max_limit);
+          }
+
+          sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
+          sync_move.t0_ms = millis();
+          sync_move.active = true;
+          Serial.printf("\xE2\x96\xBA Recall(ABS): P:%ld T:%ld Z:%ld S:%ld in %u ms\n",
+                        sync_move.goal_base[0], sync_move.goal_base[1],
+                        sync_move.goal_base[2], sync_move.goal_base[3], sync_move.T_ms);
+        }
       });
 
       // Note: /pan, /tilt, /slide/jog sont déjà gérés plus haut dans le pipeline joystick
@@ -743,6 +991,12 @@ void setup() {
   setupOSC();
 
   Serial.println("🎯 System ready!");
+
+  // Homing automatique optionnel
+  if (doAutoHomeSlide) {
+    Serial.println("\xF0\x9F\x8F\xA0 Homing automatique du slide au d\xC3\xA9marrage...");
+    home_slide();
+  }
 }
 
 //==================== Loop ====================
