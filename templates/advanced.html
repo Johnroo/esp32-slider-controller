@@ -177,6 +177,7 @@
             transition: all 0.3s ease;
             text-align: center;
             font-weight: 600;
+            position: relative;
         }
         
         .preset-btn:hover {
@@ -185,10 +186,74 @@
             transform: translateY(-2px);
         }
         
-        .preset-btn.active {
+        /* État: Sélectionné (bleu) */
+        .preset-btn.selected {
             background: #007bff;
             color: white;
             border-color: #007bff;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        /* État: Sauvé (rouge) */
+        .preset-btn.saved {
+            background: #dc3545;
+            color: white;
+            border-color: #dc3545;
+            box-shadow: 0 0 15px rgba(220, 53, 69, 0.4);
+        }
+        
+        /* État: Rappelé/Actif (vert) */
+        .preset-btn.recalled {
+            background: #28a745;
+            color: white;
+            border-color: #28a745;
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        /* État: En cours de rappel (clignotant blanc-vert) */
+        .preset-btn.recalling {
+            background: #28a745;
+            color: white;
+            border-color: #28a745;
+            animation: recallingBlink 0.8s infinite;
+        }
+        
+        @keyframes recallingBlink {
+            0% { background: #28a745; }
+            50% { background: #ffffff; color: #28a745; }
+            100% { background: #28a745; }
+        }
+        
+        /* Indicateur de statut */
+        .preset-status {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: transparent;
+        }
+        
+        .preset-btn.saved .preset-status {
+            background: #ffc107;
+        }
+        
+        .preset-btn.recalled .preset-status {
+            background: #17a2b8;
+        }
+        
+        .preset-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .preset-controls .btn {
+            flex: 1;
+            min-width: 120px;
         }
         
         .status {
@@ -283,14 +348,38 @@
             <div class="panel">
                 <h3>🎯 Presets</h3>
                 <div class="preset-grid">
-                    <div class="preset-btn" onclick="setPreset(0)">Preset 0</div>
-                    <div class="preset-btn" onclick="setPreset(1)">Preset 1</div>
-                    <div class="preset-btn" onclick="setPreset(2)">Preset 2</div>
-                    <div class="preset-btn" onclick="setPreset(3)">Preset 3</div>
-                    <div class="preset-btn" onclick="setPreset(4)">Preset 4</div>
-                    <div class="preset-btn" onclick="setPreset(5)">Preset 5</div>
-                    <div class="preset-btn" onclick="setPreset(6)">Preset 6</div>
-                    <div class="preset-btn" onclick="setPreset(7)">Preset 7</div>
+                    <div class="preset-btn" data-preset="0" onclick="selectPreset(0)">
+                        Preset 0
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="1" onclick="selectPreset(1)">
+                        Preset 1
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="2" onclick="selectPreset(2)">
+                        Preset 2
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="3" onclick="selectPreset(3)">
+                        Preset 3
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="4" onclick="selectPreset(4)">
+                        Preset 4
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="5" onclick="selectPreset(5)">
+                        Preset 5
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="6" onclick="selectPreset(6)">
+                        Preset 6
+                        <div class="preset-status"></div>
+                    </div>
+                    <div class="preset-btn" data-preset="7" onclick="selectPreset(7)">
+                        Preset 7
+                        <div class="preset-status"></div>
+                    </div>
                 </div>
                 
                 <div class="control-group">
@@ -298,7 +387,10 @@
                     <input type="number" id="presetDuration" value="2.0" min="0.1" max="200.0" step="0.1">
                 </div>
                 
-                <button class="btn btn-success" onclick="saveCurrentPreset()">💾 Save Current Position</button>
+            <div class="preset-controls">
+                <button class="btn btn-warning" onclick="saveCurrentPreset()">💾 Save to Selected</button>
+                <button class="btn btn-success" onclick="recallSelectedPreset()">▶️ Recall Selected</button>
+            </div>
             </div>
             
             <!-- Joystick Panel -->
@@ -672,20 +764,87 @@
             });
         }
         
-        function setPreset(presetId) {
+        // Variables globales pour la gestion des états
+        let selectedPreset = null;
+        let currentRecallingPreset = null;
+        
+        function selectPreset(presetId) {
+            // Désélectionner tous les presets
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            
+            // Nettoyer les états des presets non-sélectionnés
+            resetNonSelectedPresets();
+            
+            // Sélectionner le preset cliqué
+            const presetBtn = document.querySelector(`[data-preset="${presetId}"]`);
+            presetBtn.classList.add('selected');
+            selectedPreset = presetId;
+            
+            console.log(`Preset ${presetId} sélectionné`);
+        }
+        
+        function resetNonSelectedPresets() {
+            // Remettre en blanc tous les presets qui ne sont ni sauvés ni rappelés
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (!btn.classList.contains('saved') && !btn.classList.contains('recalled') && !btn.classList.contains('selected')) {
+                    btn.classList.remove('saved', 'recalled', 'recalling');
+                }
+            });
+        }
+        
+        function recallSelectedPreset() {
+            if (selectedPreset === null) {
+                alert('Veuillez d\'abord sélectionner un preset');
+                return;
+            }
+            
+            // D'abord, remettre tous les presets en blanc (sauf ceux sauvés)
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (!btn.classList.contains('saved')) {
+                    btn.classList.remove('recalled', 'recalling');
+                }
+            });
+            
             const duration = parseFloat(document.getElementById('presetDuration').value);
+            const presetBtn = document.querySelector(`[data-preset="${selectedPreset}"]`);
+            
+            // État: En cours de rappel (clignotant)
+            presetBtn.classList.remove('selected', 'recalled');
+            presetBtn.classList.add('recalling');
+            currentRecallingPreset = selectedPreset;
+            
+            // Envoyer la commande de rappel
             fetch('/api/preset/recall', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id: presetId, duration: duration})
+                body: JSON.stringify({id: selectedPreset, duration: duration})
+            }).then(response => {
+                if (response.ok) {
+                    // Simuler la durée du rappel
+                    setTimeout(() => {
+                        presetBtn.classList.remove('recalling');
+                        presetBtn.classList.add('recalled');
+                        currentRecallingPreset = null;
+                        console.log(`Preset ${selectedPreset} rappelé avec succès`);
+                    }, duration * 1000);
+                } else {
+                    // En cas d'erreur, revenir à l'état sélectionné
+                    presetBtn.classList.remove('recalling');
+                    presetBtn.classList.add('selected');
+                    currentRecallingPreset = null;
+                    alert('Erreur lors du rappel du preset');
+                }
             });
-            
-            // Update active preset
-            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
         }
         
         function saveCurrentPreset() {
+            if (selectedPreset === null) {
+                alert('Veuillez d\'abord sélectionner un preset');
+                return;
+            }
+            
             const pan = parseFloat(document.getElementById('axisPan').value);
             const tilt = parseFloat(document.getElementById('axisTilt').value);
             const zoom = parseFloat(document.getElementById('axisZoom').value);
@@ -701,14 +860,39 @@
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    id: 0, // Save to preset 0
+                    id: selectedPreset, // Save to selected preset
                     pan: panSteps,
                     tilt: tiltSteps,
                     zoom: zoomSteps,
                     slide: slideSteps
                 })
+            }).then(response => {
+                if (response.ok) {
+                    // Marquer le preset comme sauvé temporairement (rouge pendant 2s)
+                    const presetBtn = document.querySelector(`[data-preset="${selectedPreset}"]`);
+                    presetBtn.classList.remove('selected');
+                    presetBtn.classList.add('saved');
+                    console.log(`Preset ${selectedPreset} sauvegardé avec succès`);
+                    
+                    // Après 2 secondes, décider de l'état final
+                    setTimeout(() => {
+                        // Si on est toujours sur le même preset, le garder rouge (saved)
+                        // Sinon, le remettre en blanc
+                        if (selectedPreset === parseInt(presetBtn.dataset.preset)) {
+                            // On est toujours sur ce preset, le garder en rouge (saved)
+                            console.log(`Preset ${selectedPreset} reste sauvé`);
+                        } else {
+                            // On a changé de preset, remettre en blanc
+                            presetBtn.classList.remove('saved');
+                            console.log(`Preset ${selectedPreset} remis en blanc`);
+                        }
+                    }, 2000);
+                } else {
+                    alert('Erreur lors de la sauvegarde du preset');
+                }
             });
         }
+        
         
         function resetOffsets() {
             document.getElementById('panOffset').value = 0;
