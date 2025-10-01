@@ -608,7 +608,47 @@ def api_stop():
     # Reset joystick offsets
     send_osc_message('/pan', 0.0)
     send_osc_message('/tilt', 0.0)
+    # Stop interpolation auto
+    send_osc_message('/interp/auto', 0, 0.0)
     return jsonify({'success': True})
+
+# Routes pour interpolation multi-presets
+@app.route('/api/interpolation/setpoints', methods=['POST'])
+def api_interpolation_setpoints():
+    """Configure les points d'interpolation"""
+    data = request.get_json()
+    points = data.get('points', [])
+    
+    # Construire les arguments OSC: [N, preset0, pos0, preset1, pos1, ...]
+    osc_args = [len(points)]
+    for pt in points:
+        osc_args.append(int(pt.get('preset', 0)))
+        osc_args.append(float(pt.get('position', 0.0)))
+    
+    success = send_osc_message('/interp/setpoints', *osc_args)
+    return jsonify({'success': success, 'count': len(points)})
+
+@app.route('/api/interpolation/auto', methods=['POST'])
+def api_interpolation_auto():
+    """Active/désactive le mode interpolation automatique"""
+    data = request.get_json()
+    enable = bool(data.get('enable', False))
+    duration = float(data.get('duration', 5.0))
+    
+    success = send_osc_message('/interp/auto', 1 if enable else 0, duration)
+    return jsonify({'success': success, 'mode': 'auto' if enable else 'manual', 'duration': duration})
+
+@app.route('/api/interpolation/goto', methods=['POST'])
+def api_interpolation_goto():
+    """Jog manuel sur l'axe d'interpolation"""
+    data = request.get_json()
+    position = float(data.get('position', 0.0))
+    
+    # Clamp entre 0.0 et 1.0
+    position = max(0.0, min(1.0, position))
+    
+    success = send_osc_message('/interp/goto', position)
+    return jsonify({'success': success, 'position': position})
 
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")

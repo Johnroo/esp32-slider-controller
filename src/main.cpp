@@ -106,7 +106,7 @@ struct RecallPolicy {
 bool    doAutoHomeSlide     = true;   // lancer automatiquement au démarrage si true
 uint8_t slide_sg_threshold  = 100;    // SGTHRS par défaut (sensibilité moyenne)
 
-// Mode AB infini pour le slide
+// Mode AB infini pour le slide (déprécié - remplacé par interpolation multi-presets)
 struct SlideAB {
   bool enabled = false;
   long A = 0, B = 0;       // steps
@@ -114,6 +114,21 @@ struct SlideAB {
   uint32_t t0_ms = 0;
   int dir = +1;            // +1: A->B, -1: B->A
 } slideAB;
+
+// Axe d'interpolation multi-presets (nouveau système)
+struct InterpPoint { 
+  uint8_t presetIndex; 
+  float fraction; 
+};
+
+InterpPoint interpPoints[6];  // jusqu'à 6 points (A, B, C, D, E, F)
+uint8_t interpCount = 2;      // par défaut 2 points (A@0%, B@100%)
+
+struct InterpAuto {
+  bool active = false;
+  uint32_t t0_ms = 0;
+  uint32_t T_ms = 5000;   // durée du parcours 0->100%
+} interpAuto;
 
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
@@ -466,6 +481,41 @@ static inline void follow_refresh_anchor() {
   follow.valid = true;
 }
 
+//==================== Interpolation multi-presets ====================
+void computeInterpolatedPosition(float u, long &P, long &T, long &Z, long &S) {
+  // Bornes : si en-dessous du premier point ou au-delà du dernier
+  if (u <= interpPoints[0].fraction) {
+    uint8_t idx = interpPoints[0].presetIndex;
+    P = presets[idx].p;  T = presets[idx].t;
+    Z = presets[idx].z;  S = presets[idx].s;
+    return;
+  }
+  if (u >= interpPoints[interpCount-1].fraction) {
+    uint8_t idx = interpPoints[interpCount-1].presetIndex;
+    P = presets[idx].p;  T = presets[idx].t;
+    Z = presets[idx].z;  S = presets[idx].s;
+    return;
+  }
+  
+  // Trouver le segment [j, j+1] contenant u
+  uint8_t j = 0;
+  while (j < interpCount-1 && interpPoints[j+1].fraction < u) { j++; }
+  
+  // Interpolation linéaire entre point j et j+1
+  float u0 = interpPoints[j].fraction;
+  float u1 = interpPoints[j+1].fraction;
+  float alpha = (u - u0) / (u1 - u0);  // fraction relative entre ces deux points
+  
+  uint8_t presetA = interpPoints[j].presetIndex;
+  uint8_t presetB = interpPoints[j+1].presetIndex;
+  
+  // Interpolation linéaire des axes
+  P = lround( lerp((float)presets[presetA].p, (float)presets[presetB].p, alpha) );
+  T = lround( lerp((float)presets[presetA].t, (float)presets[presetB].t, alpha) );
+  Z = lround( lerp((float)presets[presetA].z, (float)presets[presetB].z, alpha) );
+  S = lround( lerp((float)presets[presetA].s, (float)presets[presetB].s, alpha) );
+}
+
 //==================== NEW: Tick de coordination ====================
 void coordinator_tick(){
   static uint32_t last_ms = millis();
@@ -474,7 +524,33 @@ void coordinator_tick(){
   if (dt_ms == 0) return;
   last_ms = now;
 
-  // Interpolation d’ancre min-jerk pour recall autour de l’autopan
+  // Mode interpolation automatique multi-presets (prioritaire)
+  if (interpAuto.active) {
+    float tau = (float)(now - interpAuto.t0_ms) / (float)interpAuto.T_ms;
+    if (tau >= 1.0f) {
+      tau = 1.0f;
+      interpAuto.active = false;
+      Serial.println("✅ Interpolation automatique terminée");
+    }
+    
+    // Profil minimum-jerk pour un mouvement fluide
+    float s = s_minjerk(tau);
+    float u = s;  // fraction actuelle sur l'axe (0->1)
+    
+    // Calculer la position interpolée pour tous les axes
+    long P, T, Z, S;
+    computeInterpolatedPosition(u, P, T, Z, S);
+    
+    // Envoyer aux moteurs
+    steppers[0]->moveTo(P);
+    steppers[1]->moveTo(T);
+    steppers[2]->moveTo(Z);
+    steppers[3]->moveTo(S);
+    
+    return;  // ignore les autres modes pendant l'interpolation auto
+  }
+
+  // Interpolation d'ancre min-jerk pour recall autour de l'autopan
   if (anchor_morph.active) {
     float tau = (float)(now - anchor_morph.t0_ms) / (float)anchor_morph.T_ms;
     if (tau >= 1.0f) { tau = 1.0f; anchor_morph.active = false; }
@@ -716,7 +792,7 @@ void processOSC() {
         Serial.printf("🎯 Follow mapping on jog: %s\n", follow.enabled ? "ON" : "OFF");
       });
       
-      // Mode AB infini pour le slide
+      // Mode AB infini pour le slide (déprécié)
       msg.dispatch("/slide/ab", [](OSCMessage &m){
         slideAB.enabled = m.getInt(0) != 0;
         slideAB.t0_ms = millis();
@@ -734,6 +810,70 @@ void processOSC() {
         slideAB.t0_ms= millis();
         slideAB.dir  = +1;
         Serial.printf("AB set A=%ld B=%ld T=%u ms\n", slideAB.A, slideAB.B, slideAB.T_ms);
+      });
+      
+      //==================== Routes OSC pour interpolation multi-presets ====================
+      msg.dispatch("/interp/setpoints", [](OSCMessage &m){
+        if (m.size() < 1) return;
+        uint8_t N = m.getInt(0);
+        if (N > 6) N = 6;  // max 6 points
+        if (N < 2) N = 2;  // min 2 points
+        
+        interpCount = N;
+        for (uint8_t j = 0; j < N; ++j) {
+          if ((1 + 2*j + 1) < m.size()) {
+            interpPoints[j].presetIndex = m.getInt(1 + 2*j);
+            interpPoints[j].fraction = m.getFloat(1 + 2*j + 1);
+          }
+        }
+        Serial.printf("🎯 Interp points set: N=%d\n", N);
+        for (uint8_t j = 0; j < N; ++j) {
+          Serial.printf("   Point %d: Preset %d @ %.1f%%\n", j, interpPoints[j].presetIndex, interpPoints[j].fraction * 100.0f);
+        }
+      });
+      
+      msg.dispatch("/interp/auto", [](OSCMessage &m){
+        bool enable = m.getInt(0) != 0;
+        float duration = (m.size() > 1 ? m.getFloat(1) : 5.0f);
+        
+        if (enable) {
+          uint32_t T_ms = (duration <= 0 ? 5000 : (uint32_t)lround(duration * 1000));
+          interpAuto.T_ms = T_ms;
+          interpAuto.t0_ms = millis();
+          interpAuto.active = true;
+          
+          // Désactiver modes concurrents
+          slideAB.enabled = false;
+          sync_move.active = false;
+          follow.valid = false;
+          
+          Serial.printf("▶️ Interpolation auto ON (T=%u ms, %.1fs)\n", T_ms, duration);
+        } else {
+          interpAuto.active = false;
+          Serial.println("⏹️ Interpolation auto OFF");
+        }
+      });
+      
+      msg.dispatch("/interp/goto", [](OSCMessage &m){
+        float fraction = clampF(m.getFloat(0), 0.0f, 1.0f);
+        
+        // Annuler modes auto
+        interpAuto.active = false;
+        sync_move.active = false;
+        slideAB.enabled = false;
+        
+        // Calculer position interpolée
+        long P, T, Z, S;
+        computeInterpolatedPosition(fraction, P, T, Z, S);
+        
+        // Commander les moteurs
+        steppers[0]->moveTo(P);
+        steppers[1]->moveTo(T);
+        steppers[2]->moveTo(Z);
+        steppers[3]->moveTo(S);
+        
+        Serial.printf("🎛️ Manual interp goto %.1f%% -> P=%ld T=%ld Z=%ld S=%ld\n", 
+                      fraction * 100.0f, P, T, Z, S);
       });
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
@@ -1003,6 +1143,17 @@ void setup() {
   
   Serial.printf("🎯 Jog speeds: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
                 PAN_JOG_SPEED, TILT_JOG_SPEED, SLIDE_JOG_SPEED);
+  
+  // Initialiser l'axe d'interpolation par défaut (2 points: Preset0@0%, Preset1@100%)
+  interpPoints[0] = {0, 0.0f};
+  interpPoints[1] = {1, 1.0f};
+  interpCount = 2;
+  
+  // Désactiver les anciens modes par défaut
+  follow.enabled = false;
+  slideAB.enabled = false;
+  
+  Serial.println("🎯 Interpolation axis initialized: 2 points (Preset0@0%, Preset1@100%)");
   
   // Initialiser l'engine
   engine.init();
