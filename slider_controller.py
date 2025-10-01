@@ -362,8 +362,8 @@ def api_joystick_rescan():
 def api_preset_recall():
     """Rappelle un preset"""
     data = request.get_json()
-    preset_id = data.get('id', 0)
-    duration = data.get('duration', 2.0)
+    preset_id = int(data.get('id', 0))
+    duration = float(data.get('duration', 2.0))
     send_osc_message('/preset/recall', preset_id, duration)
     return "ok"
 
@@ -398,7 +398,7 @@ def api_preset_recall_policy():
 def api_axis_slide():
     """Commande directe pour l'axe slide"""
     data = request.get_json()
-    value = data.get('value', 0.5)
+    value = float(data.get('value', 0.5))  # Force float
     send_osc_message('/axis_slide', value)
     return "ok"
 
@@ -406,7 +406,7 @@ def api_axis_slide():
 def api_axis_pan():
     """Commande directe pour l'axe pan"""
     data = request.get_json()
-    value = data.get('value', 0.5)
+    value = float(data.get('value', 0.5))  # Force float
     send_osc_message('/axis_pan', value)
     return "ok"
 
@@ -414,7 +414,7 @@ def api_axis_pan():
 def api_axis_tilt():
     """Commande directe pour l'axe tilt"""
     data = request.get_json()
-    value = data.get('value', 0.5)
+    value = float(data.get('value', 0.5))  # Force float
     send_osc_message('/axis_tilt', value)
     return "ok"
 
@@ -422,7 +422,7 @@ def api_axis_tilt():
 def api_axis_zoom():
     """Commande directe pour l'axe zoom"""
     data = request.get_json()
-    value = data.get('value', 0.5)
+    value = float(data.get('value', 0.5))  # Force float
     send_osc_message('/axis_zoom', value)
     return "ok"
 
