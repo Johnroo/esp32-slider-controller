@@ -484,6 +484,15 @@ uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long go
 void saveBank(uint8_t idx) {
   if (idx >= 10) return;
   
+  // Copier les variables globales vers la structure Bank
+  for (int i = 0; i < 8; i++) {
+    banks[idx].presets[i] = presets[i];
+  }
+  for (int i = 0; i < 6; i++) {
+    banks[idx].interpPoints[i] = interpPoints[i];
+  }
+  banks[idx].interpCount = interpCount;
+  
   // Initialiser NVS
   if (!nvs.begin("banks")) {
     Serial.println("❌ Erreur NVS");
@@ -498,22 +507,22 @@ void saveBank(uint8_t idx) {
   // Sérialiser les presets
   for (int i = 0; i < 8; i++) {
     JsonObject preset = presetsArray.createNestedObject();
-    preset["p"] = presets[i].p;
-    preset["t"] = presets[i].t;
-    preset["z"] = presets[i].z;
-    preset["s"] = presets[i].s;
-    preset["mode"] = presets[i].mode;
-    preset["pan_anchor"] = presets[i].pan_anchor;
-    preset["tilt_anchor"] = presets[i].tilt_anchor;
+    preset["p"] = banks[idx].presets[i].p;
+    preset["t"] = banks[idx].presets[i].t;
+    preset["z"] = banks[idx].presets[i].z;
+    preset["s"] = banks[idx].presets[i].s;
+    preset["mode"] = banks[idx].presets[i].mode;
+    preset["pan_anchor"] = banks[idx].presets[i].pan_anchor;
+    preset["tilt_anchor"] = banks[idx].presets[i].tilt_anchor;
   }
   
   // Sérialiser l'interpolation
-  for (int i = 0; i < interpCount; i++) {
+  for (int i = 0; i < banks[idx].interpCount; i++) {
     JsonObject interp = interpArray.createNestedObject();
-    interp["presetIndex"] = interpPoints[i].presetIndex;
-    interp["fraction"] = interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
+    interp["presetIndex"] = banks[idx].interpPoints[i].presetIndex;
+    interp["fraction"] = banks[idx].interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
   }
-  doc["interpCount"] = interpCount;
+  doc["interpCount"] = banks[idx].interpCount;
   
   // Sérialiser en string
   String jsonString;
@@ -524,7 +533,7 @@ void saveBank(uint8_t idx) {
   nvs.putString(key.c_str(), jsonString);
   nvs.end();
   
-  Serial.printf("💾 Banque %d sauvegardée\n", idx);
+  Serial.printf("💾 Banque %d sauvegardée (%d presets, %d points interp)\n", idx, 8, banks[idx].interpCount);
 }
 
 void loadBank(uint8_t idx) {
@@ -544,11 +553,15 @@ void loadBank(uint8_t idx) {
     Serial.printf("⚠️ Banque %d vide, initialisation par défaut\n", idx);
     // Initialiser avec des valeurs par défaut
     for (int i = 0; i < 8; i++) {
-      presets[i] = {0, 0, 0, 0, 0, 0, 0};
+      banks[idx].presets[i] = {0, 0, 0, 0, 0, 0, 0};
+      presets[i] = banks[idx].presets[i];
     }
-    interpPoints[0] = {0, 0.0f};
-    interpPoints[1] = {1, 1.0f};
-    interpCount = 2;
+    banks[idx].interpPoints[0] = {0, 0.0f};
+    banks[idx].interpPoints[1] = {1, 1.0f};
+    banks[idx].interpCount = 2;
+    interpPoints[0] = banks[idx].interpPoints[0];
+    interpPoints[1] = banks[idx].interpPoints[1];
+    interpCount = banks[idx].interpCount;
     return;
   }
   
@@ -560,29 +573,39 @@ void loadBank(uint8_t idx) {
     return;
   }
   
-  // Charger les presets
+  // Charger les presets dans la structure Bank ET les variables globales
   JsonArray presetsArray = doc["presets"];
   for (int i = 0; i < 8 && i < presetsArray.size(); i++) {
     JsonObject preset = presetsArray[i];
-    presets[i].p = preset["p"];
-    presets[i].t = preset["t"];
-    presets[i].z = preset["z"];
-    presets[i].s = preset["s"];
-    presets[i].mode = preset["mode"];
-    presets[i].pan_anchor = preset["pan_anchor"];
-    presets[i].tilt_anchor = preset["tilt_anchor"];
+    banks[idx].presets[i].p = preset["p"];
+    banks[idx].presets[i].t = preset["t"];
+    banks[idx].presets[i].z = preset["z"];
+    banks[idx].presets[i].s = preset["s"];
+    banks[idx].presets[i].mode = preset["mode"];
+    banks[idx].presets[i].pan_anchor = preset["pan_anchor"];
+    banks[idx].presets[i].tilt_anchor = preset["tilt_anchor"];
+    
+    // Copier vers les variables globales
+    presets[i] = banks[idx].presets[i];
   }
   
-  // Charger l'interpolation
+  // Charger l'interpolation dans la structure Bank ET les variables globales
   JsonArray interpArray = doc["interp"];
-  interpCount = min((int)interpArray.size(), 6);
-  for (int i = 0; i < interpCount; i++) {
+  banks[idx].interpCount = min((int)interpArray.size(), 6);
+  for (int i = 0; i < banks[idx].interpCount; i++) {
     JsonObject interp = interpArray[i];
-    interpPoints[i].presetIndex = interp["presetIndex"];
-    interpPoints[i].fraction = interp["fraction"].as<float>() / 100.0f; // Convertir depuis pourcentage
+    banks[idx].interpPoints[i].presetIndex = interp["presetIndex"];
+    banks[idx].interpPoints[i].fraction = interp["fraction"].as<float>() / 100.0f; // Convertir depuis pourcentage
+    
+    // Copier vers les variables globales
+    interpPoints[i] = banks[idx].interpPoints[i];
   }
+  interpCount = banks[idx].interpCount;
   
-  Serial.printf("📂 Banque %d chargée (%d presets, %d points interp)\n", idx, 8, interpCount);
+  // Appliquer automatiquement les points d'interpolation (comme si l'utilisateur avait cliqué "Apply")
+  // Les points sont déjà chargés dans interpPoints[] et interpCount, l'axe d'interpolation est actif
+  
+  Serial.printf("📂 Banque %d chargée (%d presets, %d points interp) - Axe d'interpolation activé\n", idx, 8, interpCount);
 }
 
 void saveActiveBank() {
