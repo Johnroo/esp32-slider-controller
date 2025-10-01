@@ -1195,10 +1195,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             extraContainer.appendChild(pointDiv);
             interpPointCount++;
             
-            document.getElementById('addPointBtn').textContent = `+ Add Point (${interpPointCount}/${maxInterpPoints})`;
-            if (interpPointCount >= maxInterpPoints) {
-                document.getElementById('addPointBtn').disabled = true;
-            }
+            // Utiliser la fonction centralisée pour mettre à jour le bouton
+            updateAddPointButton();
         }
 
         function removeInterpPoint(index) {
@@ -1206,8 +1204,9 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             if (pointDiv) {
                 pointDiv.remove();
                 interpPointCount--;
-                document.getElementById('addPointBtn').textContent = `+ Add Point (${interpPointCount}/${maxInterpPoints})`;
-                document.getElementById('addPointBtn').disabled = false;
+                
+                // Utiliser la fonction centralisée pour mettre à jour le bouton
+                updateAddPointButton();
             }
         }
 
@@ -1429,12 +1428,25 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                     // Mettre à jour les points d'interpolation si disponibles
                     if (data.interp && data.interpCount) {
                         updateInterpolationUI(data.interpCount, data.interp);
+                        
+                        // Mettre à jour le compteur et le bouton Add Point
+                        interpPointCount = data.interpCount;
+                        updateAddPointButton();
                     }
                 } else {
                     document.getElementById('bankStatus').textContent = 'Error loading bank';
                     document.getElementById('bankStatus').style.color = '#f44336';
                 }
             });
+        }
+
+        // Fonction pour mettre à jour le bouton Add Point
+        function updateAddPointButton() {
+            const btn = document.getElementById('addPointBtn');
+            if (btn) {
+                btn.textContent = `+ Add Point (${interpPointCount}/${maxInterpPoints})`;
+                btn.disabled = (interpPointCount >= maxInterpPoints);
+            }
         }
 
         // Fonction pour mettre à jour l'interface d'interpolation
@@ -1464,11 +1476,33 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 }
             }
             
-            // Ajouter les points supplémentaires (2 et plus)
+            // Créer directement les points supplémentaires (2 et plus) sans utiliser addInterpPoint()
             for (let i = 2; i < interpCount; i++) {
                 if (i < interpPoints.length) {
-                    // Ajouter un nouveau point
-                    addInterpPoint();
+                    const pointLabel = String.fromCharCode(65 + i);  // C, D, E, F
+                    
+                    const pointDiv = document.createElement('div');
+                    pointDiv.className = 'control-group';
+                    pointDiv.id = `interpPoint${i}`;
+                    pointDiv.innerHTML = `
+                        <label>Point ${pointLabel}:</label>
+                        <select id="interpPreset${i}">
+                            <option value="0">Preset 0</option>
+                            <option value="1">Preset 1</option>
+                            <option value="2">Preset 2</option>
+                            <option value="3">Preset 3</option>
+                            <option value="4">Preset 4</option>
+                            <option value="5">Preset 5</option>
+                            <option value="6">Preset 6</option>
+                            <option value="7">Preset 7</option>
+                        </select>
+                        <span>@</span>
+                        <input type="number" id="interpPos${i}" min="0" max="100" step="1" value="50" style="width: 60px;">
+                        <span>%</span>
+                        <button onclick="removeInterpPoint(${i})" class="btn-danger" style="margin-left: 10px;">✖️</button>
+                    `;
+                    
+                    extraContainer.appendChild(pointDiv);
                     
                     // Remplir les valeurs
                     const presetField = document.getElementById(`interpPreset${i}`);
@@ -1681,6 +1715,9 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         
         // Polling initial
         pollMotorPositions();
+        
+        // Initialiser le bouton Add Point au chargement de la page
+        updateAddPointButton();
     </script>
 </body>
 </html>
