@@ -52,7 +52,12 @@ def main():
     print()
     
     # Import and run the Flask app
-    from slider_controller import app
+    from slider_controller import app, _start_joystick_thread
+    
+    # Start joystick thread
+    print("🎮 Starting joystick thread...")
+    _start_joystick_thread()
+    
     app.run(host='0.0.0.0', port=FLASK_PORT, debug=True)
 
 if __name__ == '__main__':

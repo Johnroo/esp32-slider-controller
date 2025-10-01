@@ -103,8 +103,8 @@ struct RecallPolicy {
 
 //==================== Homing Slide (StallGuard) ====================
 // Permettre un homing sans capteur sur l'axe slide via StallGuard (TMC2209)
-bool    doAutoHomeSlide     = false;   // lancer automatiquement au démarrage si true
-uint8_t slide_sg_threshold  = 8;       // SGTHRS par défaut (sensibilité moyenne)
+bool    doAutoHomeSlide     = true;   // lancer automatiquement au démarrage si true
+uint8_t slide_sg_threshold  = 100;    // SGTHRS par défaut (sensibilité moyenne)
 
 // Mode AB infini pour le slide
 struct SlideAB {
@@ -153,13 +153,13 @@ struct AxisConfig {
 
 AxisConfig cfg[NUM_MOTORS] = {
   // Pan
-  {-10000, 10000, 1200, 16, 20000, 8000, 0, false, true, false},
+  {-27106, 27106, 1200, 16, 20000, 12000, 0, false, true, false},
   // Tilt  
-  {-10000, 10000, 1200, 16, 20000, 8000, 0, false, true, false},
+  {-2439, 2439, 1200, 16, 20000, 12000, 0, false, false, true},
   // Zoom
-  {-20000, 20000, 400, 16, 20000, 8000, 0, false, true, false},
+  {-20000, 20000, 400, 16, 20000, 8000, 0, false, false, true},
   // Slide
-  {-20000, 20000, 1800, 8, 20000, 8000, 0, false, true, false}
+  {-20000, 20000, 1800, 8, 20000, 12000, 0, false, false, true}
 };
 
 //==================== Objets moteurs ====================
@@ -197,7 +197,7 @@ void setupDriversTMC() {
 #define SLIDE_INDEX     3
 #define HOMING_SPEED    9000     // steps/s (2000-4000 range pour SG4)
 #define HOMING_ACCEL    90000    // accel élevée pour atteindre vitesse rapidement
-#define SG_THRESHOLD    100       // SGTHRS (0-255, 10-15 range, plus petit = plus sensible)
+// SG_THRESHOLD remplacé par slide_sg_threshold (variable globale)
 #define SG_DETECT       100      // seuil SG_RESULT pour détecter stall (commencer à ~100)
 #define HOMING_TIMEOUT  20000    // ms
 #define BACKOFF_STEPS   300      // pas de recul après détection
@@ -226,7 +226,7 @@ void home_slide() {
   // Configuration pour StallGuard4 (StealthChop requis)
   drivers[i]->en_spreadCycle(false);  // StealthChop pour StallGuard4
   drivers[i]->TPWMTHRS(0xFFFFF);      // Garder StealthChop à haute vitesse
-  drivers[i]->SGTHRS(SG_THRESHOLD);   // Sensibilité StallGuard
+  drivers[i]->SGTHRS(slide_sg_threshold);   // Sensibilité StallGuard
   drivers[i]->TCOOLTHRS(0xFFFFF);     // Activer SG même à basse vitesse
 
   // Configuration vitesse/accel pour homing
@@ -234,7 +234,7 @@ void home_slide() {
   steppers[i]->setSpeedInHz(HOMING_SPEED);
 
   Serial.printf("🎯 Config: Speed=%d, Accel=%d, SGTHRS=%d, SG_DETECT=%d\n", 
-                 HOMING_SPEED, HOMING_ACCEL, SG_THRESHOLD, SG_DETECT);
+                 HOMING_SPEED, HOMING_ACCEL, slide_sg_threshold, SG_DETECT);
 
   // ------------------ PHASE INF (vers butée inférieure) ------------------
   Serial.println("▶️ Vers butée INF...");

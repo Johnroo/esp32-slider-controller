@@ -50,9 +50,11 @@ def _apply_deadzone(v: float, dz: float) -> float:
 def send_osc_message(address, *args):
     """Envoie un message OSC vers l'ESP32"""
     try:
-        osc_client.send_message(address, args)
+        osc_client.send_message(address, list(args) if args else [])
+        return True
     except Exception as e:
         print(f"[OSC] Erreur envoi {address}: {e}")
+        return False
 
 def _start_joystick_thread():
     """Démarre le thread joystick"""
@@ -420,6 +422,190 @@ def api_axis_zoom():
     value = data.get('value', 0.5)
     send_osc_message('/axis_zoom', value)
     return "ok"
+
+# Routes pour joystick offsets (sliders pan/tilt sans joystick physique)
+@app.route('/api/joystick/pan', methods=['POST'])
+def api_joystick_pan():
+    """Envoie un offset pan via le slider"""
+    data = request.get_json()
+    value = float(data.get('value', 0.0))  # -1.0 to 1.0
+    value = max(-1.0, min(1.0, value))
+    
+    success = send_osc_message('/pan', value)
+    return jsonify({'success': True, 'value': value})
+
+@app.route('/api/joystick/tilt', methods=['POST'])
+def api_joystick_tilt():
+    """Envoie un offset tilt via le slider"""
+    data = request.get_json()
+    value = float(data.get('value', 0.0))  # -1.0 to 1.0
+    value = max(-1.0, min(1.0, value))
+    
+    success = send_osc_message('/tilt', value)
+    return jsonify({'success': True, 'value': value})
+
+@app.route('/api/joystick/combined', methods=['POST'])
+def api_joystick_combined():
+    """Envoie pan et tilt combinés"""
+    data = request.get_json()
+    pan = float(data.get('pan', 0.0))
+    tilt = float(data.get('tilt', 0.0))
+    
+    pan = max(-1.0, min(1.0, pan))
+    tilt = max(-1.0, min(1.0, tilt))
+    
+    success = send_osc_message('/joy/pt', pan, tilt)
+    return jsonify({'success': True, 'pan': pan, 'tilt': tilt})
+
+# Routes pour slide control
+@app.route('/api/slide/jog', methods=['POST'])
+def api_slide_jog():
+    """Contrôle jog du slide"""
+    data = request.get_json()
+    value = float(data.get('value', 0.0))  # -1.0 to 1.0
+    value = max(-1.0, min(1.0, value))
+    
+    success = send_osc_message('/slide/jog', value)
+    return jsonify({'success': True, 'value': value})
+
+@app.route('/api/slide/goto', methods=['POST'])
+def api_slide_goto():
+    """Déplace le slide vers une position"""
+    data = request.get_json()
+    position = float(data.get('position', 0.5))  # 0.0 to 1.0
+    duration = float(data.get('duration', 2.0))
+    
+    position = max(0.0, min(1.0, position))
+    duration = max(0.1, min(60.0, duration))
+    
+    success = send_osc_message('/slide/goto', position, duration)
+    return jsonify({'success': True, 'position': position, 'duration': duration})
+
+# Routes pour configuration
+@app.route('/api/config/offset_range', methods=['POST'])
+def api_config_offset_range():
+    """Configure les ranges des offsets"""
+    data = request.get_json()
+    pan_range = int(data.get('pan_range', 800))
+    tilt_range = int(data.get('tilt_range', 800))
+    
+    success = send_osc_message('/config/offset_range', pan_range, tilt_range)
+    return jsonify({'success': True, 'pan_range': pan_range, 'tilt_range': tilt_range})
+
+@app.route('/api/config/pan_map', methods=['POST'])
+def api_config_pan_map():
+    """Configure le mapping pan"""
+    data = request.get_json()
+    min_val = int(data.get('min', 800))
+    max_val = int(data.get('max', -800))
+    
+    success = send_osc_message('/config/pan_map', min_val, max_val)
+    return jsonify({'success': True, 'min': min_val, 'max': max_val})
+
+@app.route('/api/config/tilt_map', methods=['POST'])
+def api_config_tilt_map():
+    """Configure le mapping tilt"""
+    data = request.get_json()
+    min_val = int(data.get('min', 0))
+    max_val = int(data.get('max', 0))
+    
+    success = send_osc_message('/config/tilt_map', min_val, max_val)
+    return jsonify({'success': True, 'min': min_val, 'max': max_val})
+
+# Routes pour presets avancés
+@app.route('/api/preset/set', methods=['POST'])
+def api_preset_set():
+    """Définit un preset avec des valeurs spécifiques"""
+    data = request.get_json()
+    preset_id = int(data.get('id', 0))
+    pan = int(data.get('pan', 0))
+    tilt = int(data.get('tilt', 0))
+    zoom = int(data.get('zoom', 0))
+    slide = int(data.get('slide', 0))
+    
+    success = send_osc_message('/preset/set', preset_id, pan, tilt, zoom, slide)
+    return jsonify({'success': True, 'id': preset_id})
+
+# Routes pour joystick config
+@app.route('/api/joystick/config', methods=['POST'])
+def api_joystick_config():
+    """Configure joystick parameters"""
+    data = request.get_json()
+    deadzone = float(data.get('deadzone', 0.06))
+    expo = float(data.get('expo', 0.35))
+    slew = float(data.get('slew', 8000.0))
+    filter_hz = float(data.get('filter_hz', 60.0))
+    pan_tilt_speed = float(data.get('pan_tilt_speed', 1.0))
+    slide_speed = float(data.get('slide_speed', 1.0))
+    
+    # Clamp values to valid ranges
+    deadzone = max(0.0, min(0.5, deadzone))
+    expo = max(0.0, min(0.95, expo))
+    slew = max(0.0, slew)
+    filter_hz = max(0.0, filter_hz)
+    pan_tilt_speed = max(0.1, min(3.0, pan_tilt_speed))
+    slide_speed = max(0.1, min(3.0, slide_speed))
+    
+    success = send_osc_message('/joy/config', deadzone, expo, slew, filter_hz, pan_tilt_speed, slide_speed)
+    return jsonify({
+        'success': True, 
+        'deadzone': deadzone, 
+        'expo': expo, 
+        'slew': slew, 
+        'filter_hz': filter_hz,
+        'pan_tilt_speed': pan_tilt_speed,
+        'slide_speed': slide_speed
+    })
+
+# Routes pour follow mapping et AB mode
+@app.route('/api/follow/enable', methods=['POST'])
+def api_follow_enable():
+    """Enable/disable follow mapping"""
+    data = request.get_json()
+    enable = bool(data.get('enable', True))
+    
+    success = send_osc_message('/follow/en', 1 if enable else 0)
+    return jsonify({'success': True, 'enabled': enable})
+
+@app.route('/api/slide/ab', methods=['POST'])
+def api_slide_ab():
+    """Enable/disable infinite AB mode"""
+    data = request.get_json()
+    enable = bool(data.get('enable', False))
+    
+    success = send_osc_message('/slide/ab', 1 if enable else 0)
+    return jsonify({'success': True, 'enabled': enable})
+
+@app.route('/api/slide/ab/set', methods=['POST'])
+def api_slide_ab_set():
+    """Set AB points and duration"""
+    data = request.get_json()
+    point_a = float(data.get('point_a', 0.0))  # 0.0 to 1.0
+    point_b = float(data.get('point_b', 1.0))  # 0.0 to 1.0
+    duration = float(data.get('duration', 4.0))  # seconds
+    
+    # Clamp values
+    point_a = max(0.0, min(1.0, point_a))
+    point_b = max(0.0, min(1.0, point_b))
+    duration = max(0.5, min(60.0, duration))
+    
+    success = send_osc_message('/slide/ab/set', point_a, point_b, duration)
+    return jsonify({
+        'success': True,
+        'point_a': point_a,
+        'point_b': point_b,
+        'duration': duration
+    })
+
+@app.route('/api/stop', methods=['POST'])
+def api_stop():
+    """Stop all movement"""
+    # Stop slide jog
+    send_osc_message('/slide/jog', 0.0)
+    # Reset joystick offsets
+    send_osc_message('/pan', 0.0)
+    send_osc_message('/tilt', 0.0)
+    return jsonify({'success': True})
 
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")
