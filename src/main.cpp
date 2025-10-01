@@ -1561,6 +1561,12 @@ void setupWebServer() {
     req->send(200, "application/json", out);
   });
   
+  // Test endpoint simple
+  webServer.on("/api/test", HTTP_GET, [](AsyncWebServerRequest *req){
+    Serial.println("🧪 /api/test requested");
+    req->send(200, "application/json", "{\"status\":\"ok\",\"message\":\"test endpoint works\"}");
+  });
+  
   webServer.begin();
   Serial.println("🌐 Web server started");
 }
