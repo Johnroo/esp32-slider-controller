@@ -1513,8 +1513,14 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         // Polling des positions des moteurs en temps réel
         async function refreshAxes(){
             try {
+                console.log('🔄 Fetching /api/axes/status...');
                 const r = await fetch('/api/axes/status');
+                if (!r.ok) {
+                    throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+                }
                 const data = await r.json();
+                console.log('📊 Axes data received:', data);
+                
                 isUpdatingFromServer = true;
                 document.getElementById('axisPan').value   = data.pan;
                 document.getElementById('axisTilt').value  = data.tilt;
@@ -1525,8 +1531,9 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 document.getElementById('axisZoomValue').textContent  = data.zoom.toFixed(2);
                 document.getElementById('axisSlideValue').textContent = data.slide.toFixed(2);
                 isUpdatingFromServer = false;
+                console.log('✅ Axes updated successfully');
             } catch(e){ 
-                console.error('Erreur refresh axes:', e); 
+                console.error('❌ Erreur refresh axes:', e); 
             }
         }
         

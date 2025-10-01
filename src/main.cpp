@@ -1538,17 +1538,26 @@ void setupWebServer() {
   
   //==================== NEW: Axes Status Endpoint ====================
   webServer.on("/api/axes/status", HTTP_GET, [](AsyncWebServerRequest *req){
+    Serial.println("📡 /api/axes/status requested");
     DynamicJsonDocument doc(256);
     // Normalise les positions entre 0 et 1 selon min/max de chaque axe
     auto norm = [](long pos, long min, long max){
       return (max!=min)? (float)(pos - min) / (float)(max - min) : 0.0f;
     };
-    doc["pan"]   = norm(steppers[0]->getCurrentPosition(), cfg[0].min_limit, cfg[0].max_limit);
-    doc["tilt"]  = norm(steppers[1]->getCurrentPosition(), cfg[1].min_limit, cfg[1].max_limit);
-    doc["zoom"]  = norm(steppers[2]->getCurrentPosition(), cfg[2].min_limit, cfg[2].max_limit);
-    doc["slide"] = norm(steppers[3]->getCurrentPosition(), cfg[3].min_limit, cfg[3].max_limit);
+    
+    long pan_pos = steppers[0]->getCurrentPosition();
+    long tilt_pos = steppers[1]->getCurrentPosition();
+    long zoom_pos = steppers[2]->getCurrentPosition();
+    long slide_pos = steppers[3]->getCurrentPosition();
+    
+    doc["pan"]   = norm(pan_pos, cfg[0].min_limit, cfg[0].max_limit);
+    doc["tilt"]  = norm(tilt_pos, cfg[1].min_limit, cfg[1].max_limit);
+    doc["zoom"]  = norm(zoom_pos, cfg[2].min_limit, cfg[2].max_limit);
+    doc["slide"] = norm(slide_pos, cfg[3].min_limit, cfg[3].max_limit);
+    
     String out; 
     serializeJson(doc, out);
+    Serial.printf("📊 Axes status: %s\n", out.c_str());
     req->send(200, "application/json", out);
   });
   
