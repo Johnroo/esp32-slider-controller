@@ -543,6 +543,12 @@
             <!-- Direct Axis Controls -->
             <div class="panel">
                 <h3>🎛️ Direct Axis Controls</h3>
+                
+                <!-- Debug Test Button -->
+                <div class="control-group" style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffeaa7;">
+                    <button onclick="testConnection()" class="btn btn-warning" style="margin-right: 10px;">🧪 Test API Connection</button>
+                    <button onclick="refreshAxes()" class="btn btn-primary">🔄 Test Axes Refresh</button>
+                </div>
                 <div class="control-group">
                     <label>Pan (0 to 1):</label>
                     <input type="range" class="slider" id="axisPan" min="0" max="1" step="0.01" value="0.5">
@@ -1510,8 +1516,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
 
         pollJoystick();
         
-        // Test function pour vérifier la connectivité
-        async function testConnection(){
+        // Test function pour vérifier la connectivité (globale)
+        window.testConnection = async function(){
             try {
                 console.log('🧪 Testing /api/test...');
                 const r = await fetch('/api/test');
@@ -1527,8 +1533,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             }
         }
         
-        // Polling des positions des moteurs en temps réel
-        async function refreshAxes(){
+        // Polling des positions des moteurs en temps réel (globale)
+        window.refreshAxes = async function(){
             try {
                 console.log('🔄 Fetching /api/axes/status...');
                 const r = await fetch('/api/axes/status');
