@@ -51,9 +51,12 @@ def send_osc_message(address, *args):
     """Envoie un message OSC vers l'ESP32"""
     try:
         osc_client.send_message(address, list(args) if args else [])
+        # Log détaillé de tous les messages OSC
+        args_str = ', '.join([f'{arg:.3f}' if isinstance(arg, float) else str(arg) for arg in args])
+        print(f"[OSC] 📤 {address} [{args_str}]")
         return True
     except Exception as e:
-        print(f"[OSC] Erreur envoi {address}: {e}")
+        print(f"[OSC] ❌ Erreur envoi {address}: {e}")
         return False
 
 def _start_joystick_thread():
