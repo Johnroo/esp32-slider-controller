@@ -763,29 +763,37 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             sendTiltOffset(value);
         });
         
-        // Direct axis controls
+        // Direct axis controls - avec protection contre les boucles
         document.getElementById('axisPan').addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            document.getElementById('axisPanValue').textContent = value.toFixed(2);
-            sendAxisPan(value);
+            if (!isUpdatingFromServer) {
+                const value = parseFloat(this.value);
+                document.getElementById('axisPanValue').textContent = value.toFixed(2);
+                sendAxisPan(value);
+            }
         });
         
         document.getElementById('axisTilt').addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            document.getElementById('axisTiltValue').textContent = value.toFixed(2);
-            sendAxisTilt(value);
+            if (!isUpdatingFromServer) {
+                const value = parseFloat(this.value);
+                document.getElementById('axisTiltValue').textContent = value.toFixed(2);
+                sendAxisTilt(value);
+            }
         });
         
         document.getElementById('axisZoom').addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            document.getElementById('axisZoomValue').textContent = value.toFixed(2);
-            sendAxisZoom(value);
+            if (!isUpdatingFromServer) {
+                const value = parseFloat(this.value);
+                document.getElementById('axisZoomValue').textContent = value.toFixed(2);
+                sendAxisZoom(value);
+            }
         });
         
         document.getElementById('axisSlide').addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            document.getElementById('axisSlideValue').textContent = value.toFixed(2);
-            sendAxisSlide(value);
+            if (!isUpdatingFromServer) {
+                const value = parseFloat(this.value);
+                document.getElementById('axisSlideValue').textContent = value.toFixed(2);
+                sendAxisSlide(value);
+            }
         });
         
         // API Functions
@@ -1504,10 +1512,10 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         
         // Polling des positions des moteurs en temps réel
         function pollMotorPositions() {
-            fetch('/api/motors')
+            fetch('/api/status')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
+                    if (data.motors) {
                         updateMotorDisplays(data);
                     }
                 })
@@ -1522,35 +1530,38 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             const motorsPercent = data.motors_percent;
             
             // Mettre à jour les sliders "Direct Axis" avec les positions actuelles
-            updateDirectAxisSlider('pan', motors.pan, motorsPercent.pan);
-            updateDirectAxisSlider('tilt', motors.tilt, motorsPercent.tilt);
-            updateDirectAxisSlider('zoom', motors.zoom, motorsPercent.zoom);
-            updateDirectAxisSlider('slide', motors.slide, motorsPercent.slide);
-            
-            // Mettre à jour les affichages de position
-            updatePositionDisplay('panPos', motors.pan, motorsPercent.pan);
-            updatePositionDisplay('tiltPos', motors.tilt, motorsPercent.tilt);
-            updatePositionDisplay('zoomPos', motors.zoom, motorsPercent.zoom);
-            updatePositionDisplay('slidePos', motors.slide, motorsPercent.slide);
+            updateDirectAxisSlider('axisPan', motors.pan, motorsPercent.pan);
+            updateDirectAxisSlider('axisTilt', motors.tilt, motorsPercent.tilt);
+            updateDirectAxisSlider('axisZoom', motors.zoom, motorsPercent.zoom);
+            updateDirectAxisSlider('axisSlide', motors.slide, motorsPercent.slide);
             
             // Mettre à jour l'état des modes
             updateModeStatus(data.modes);
         }
         
+        // Variable pour éviter les boucles lors de la mise à jour automatique
+        let isUpdatingFromServer = false;
+        
         function updateDirectAxisSlider(axis, position, percent) {
             const slider = document.getElementById(`${axis}Slider`);
-            if (slider) {
-                // Convertir la position en valeur de slider (0-100)
-                slider.value = Math.max(0, Math.min(100, percent));
+            const valueDisplay = document.getElementById(`${axis}Value`);
+            
+            if (slider && valueDisplay) {
+                // Marquer qu'on est en train de mettre à jour depuis le serveur
+                isUpdatingFromServer = true;
+                
+                // Convertir le pourcentage (0-100) en valeur de slider (0-1)
+                const sliderValue = percent / 100.0;
+                slider.value = Math.max(0, Math.min(1, sliderValue));
+                valueDisplay.textContent = sliderValue.toFixed(2);
+                
+                // Réinitialiser le flag après un court délai
+                setTimeout(() => {
+                    isUpdatingFromServer = false;
+                }, 100);
             }
         }
         
-        function updatePositionDisplay(elementId, position, percent) {
-            const element = document.getElementById(elementId);
-            if (element) {
-                element.textContent = `${position} (${percent.toFixed(1)}%)`;
-            }
-        }
         
         function updateModeStatus(modes) {
             // Mettre à jour l'affichage des modes actifs
