@@ -62,26 +62,36 @@
             border-bottom: 2px solid #dee2e6;
             padding-bottom: 10px;
         }
+        
+        .panel-black {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+        }
+        
+        .panel-black h3 {
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
 
         .control-panel {
-            background: #2a2a2a;
+            background: #f8f9fa;
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            border: 1px solid #444;
+            border: 1px solid #e9ecef;
         }
 
         .motor-config {
-            background: #1e1e1e;
+            background: #ffffff;
             border-radius: 6px;
             padding: 15px;
             margin-bottom: 15px;
-            border: 1px solid #333;
+            border: 1px solid #dee2e6;
         }
 
         .motor-config h4 {
             margin: 0 0 10px 0;
-            color: #4CAF50;
+            color: #495057;
             font-size: 14px;
         }
 
@@ -423,36 +433,36 @@
         <h1>🎬 ESP32 Slider Controller - Advanced</h1>
         
         <div class="grid">
-            <!-- Bank Management -->
-            <div class="control-panel">
-                <h3>🏦 Bank Management</h3>
-                
-                <div class="control-group">
-                    <label>Active Bank:</label>
-                    <select id="bankSelector">
-                        <option value="0" selected>Bank 0</option>
-                        <option value="1">Bank 1</option>
-                        <option value="2">Bank 2</option>
-                        <option value="3">Bank 3</option>
-                        <option value="4">Bank 4</option>
-                        <option value="5">Bank 5</option>
-                        <option value="6">Bank 6</option>
-                        <option value="7">Bank 7</option>
-                        <option value="8">Bank 8</option>
-                        <option value="9">Bank 9</option>
-                    </select>
-                </div>
-                
-                <div class="control-group">
-                    <button onclick="openBank()" class="btn-primary">📂 Open Bank</button>
-                    <button onclick="saveBank()" class="btn-success">💾 Save Bank</button>
-                    <span id="bankStatus" style="margin-left: 10px; color: #4CAF50;">Ready</span>
-                </div>
-            </div>
-
             <!-- Presets Panel -->
             <div class="panel">
                 <h3>🎯 Presets</h3>
+                
+                <!-- Bank Management -->
+                <div class="control-group" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+                    <h4 style="margin-bottom: 10px; color: #495057;">🏦 Bank Management</h4>
+                    
+                    <div class="control-group">
+                        <label>Active Bank:</label>
+                        <select id="bankSelector">
+                            <option value="0" selected>Bank 0</option>
+                            <option value="1">Bank 1</option>
+                            <option value="2">Bank 2</option>
+                            <option value="3">Bank 3</option>
+                            <option value="4">Bank 4</option>
+                            <option value="5">Bank 5</option>
+                            <option value="6">Bank 6</option>
+                            <option value="7">Bank 7</option>
+                            <option value="8">Bank 8</option>
+                            <option value="9">Bank 9</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <button onclick="openBank()" class="btn-primary">📂 Open Bank</button>
+                        <button onclick="saveBank()" class="btn-success">💾 Save Bank</button>
+                        <span id="bankStatus" style="margin-left: 10px; color: #4CAF50;">Ready</span>
+                    </div>
+                </div>
                 <div class="preset-grid">
                     <div class="preset-btn" data-preset="0" onclick="selectPreset(0)">
                         Preset 0
@@ -497,14 +507,6 @@
             <div class="preset-controls">
                 <button class="btn btn-success" onclick="recallSelectedPreset()">▶️ Recall Selected</button>
                 <button class="btn" onclick="storeRealPreset()">💾 Store (positions réelles)</button>
-                <select id="presetMode" class="btn">
-                    <option value="abs">Preset Mode: Absolute</option>
-                    <option value="follow">Preset Mode: Follow Slide</option>
-                </select>
-                <select id="slidePolicy" class="btn">
-                    <option value="KEEP_AB">Recall Slide: KEEP_AB</option>
-                    <option value="GOTO_THEN_RESUME">Recall Slide: GOTO_THEN_RESUME</option>
-                </select>
             </div>
             </div>
             
@@ -567,76 +569,6 @@
             </div>
         </div>
         
-        <!-- Configuration Panel -->
-        <div class="config-section">
-            <h4>⚙️ Advanced Configuration</h4>
-            <div class="config-grid">
-                <div class="control-group">
-                    <label>Pan Offset Range:</label>
-                    <input type="number" id="panRange" value="800" min="100" max="2000">
-                </div>
-                <div class="control-group">
-                    <label>Tilt Offset Range:</label>
-                    <input type="number" id="tiltRange" value="800" min="100" max="2000">
-                </div>
-                <div class="control-group">
-                    <label>Pan Map Min:</label>
-                    <input type="number" id="panMapMin" value="800" min="-2000" max="2000">
-                </div>
-                <div class="control-group">
-                    <label>Pan Map Max:</label>
-                    <input type="number" id="panMapMax" value="-800" min="-2000" max="2000">
-                </div>
-                <div class="control-group">
-                    <label>Tilt Map Min:</label>
-                    <input type="number" id="tiltMapMin" value="0" min="-2000" max="2000">
-                </div>
-                <div class="control-group">
-                    <label>Tilt Map Max:</label>
-                    <input type="number" id="tiltMapMax" value="0" min="-2000" max="2000">
-                </div>
-            </div>
-            <button class="btn btn-warning" onclick="applyConfig()">🔧 Apply Configuration</button>
-        </div>
-        
-        <!-- Joystick Configuration Panel -->
-        <div class="config-section">
-            <h4>🎮 Joystick Configuration</h4>
-            <div class="config-grid">
-                <div class="control-group">
-                    <label>Deadzone:</label>
-                    <input type="range" id="deadzone" min="0" max="0.5" step="0.01" value="0.06" oninput="updateDeadzoneValue()">
-                    <span id="deadzoneValue">0.06</span>
-                </div>
-                <div class="control-group">
-                    <label>Expo:</label>
-                    <input type="range" id="expo" min="0" max="0.95" step="0.01" value="0.35" oninput="updateExpoValue()">
-                    <span id="expoValue">0.35</span>
-                </div>
-                <div class="control-group">
-                    <label>Slew Rate:</label>
-                    <input type="range" id="slew" min="1000" max="20000" step="100" value="8000" oninput="updateSlewValue()">
-                    <span id="slewValue">8000</span>
-                </div>
-                <div class="control-group">
-                    <label>Filter Hz:</label>
-                    <input type="range" id="filterHz" min="10" max="200" step="5" value="60" oninput="updateFilterHzValue()">
-                    <span id="filterHzValue">60</span>
-                </div>
-                <div class="control-group">
-                    <label>Pan/Tilt Speed:</label>
-                    <input type="range" id="panTiltSpeed" min="0.1" max="3.0" step="0.1" value="1.0" oninput="updatePanTiltSpeedValue()">
-                    <span id="panTiltSpeedValue">1.0x</span>
-                </div>
-                <div class="control-group">
-                    <label>Slide Speed:</label>
-                    <input type="range" id="slideSpeed" min="0.1" max="3.0" step="0.1" value="1.0" oninput="updateSlideSpeedValue()">
-                    <span id="slideSpeedValue">1.0x</span>
-                </div>
-            </div>
-            <button class="btn btn-info" onclick="applyJoystickConfig()">🎮 Apply Joystick Config</button>
-        </div>
-
 
         <!-- Multi-Preset Interpolation Axis -->
         <div class="control-panel">
@@ -1051,27 +983,6 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             });
         }
 
-        // Changement de mode du preset sélectionné
-        document.addEventListener('change', (e) => {
-            if (e.target && e.target.id === 'presetMode') {
-                if (selectedPreset === null) return;
-                const mode = document.getElementById('presetMode').value; // 'abs'|'follow'
-                fetch('/api/preset/mode', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ id: selectedPreset, mode: mode })
-                });
-            }
-            if (e.target && e.target.id === 'slidePolicy') {
-                const v = document.getElementById('slidePolicy').value; // 'KEEP_AB'|'GOTO_THEN_RESUME'
-                const code = (v === 'GOTO_THEN_RESUME') ? 1 : 0;
-                fetch('/api/preset/recall_policy', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ slide: code })
-                });
-            }
-        });
         
         
         
