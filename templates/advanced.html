@@ -1516,6 +1516,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 .then(response => response.json())
                 .then(data => {
                     if (data.motors) {
+                        console.log('Positions moteurs reçues:', data.motors);
+                        console.log('Pourcentages moteurs:', data.motors_percent);
                         updateMotorDisplays(data);
                     }
                 })
@@ -1530,10 +1532,10 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             const motorsPercent = data.motors_percent;
             
             // Mettre à jour les sliders "Direct Axis" avec les positions actuelles
-            updateDirectAxisSlider('axisPan', motors.pan, motorsPercent.pan);
-            updateDirectAxisSlider('axisTilt', motors.tilt, motorsPercent.tilt);
-            updateDirectAxisSlider('axisZoom', motors.zoom, motorsPercent.zoom);
-            updateDirectAxisSlider('axisSlide', motors.slide, motorsPercent.slide);
+            updateDirectAxisSlider('Pan', motors.pan, motorsPercent.pan);
+            updateDirectAxisSlider('Tilt', motors.tilt, motorsPercent.tilt);
+            updateDirectAxisSlider('Zoom', motors.zoom, motorsPercent.zoom);
+            updateDirectAxisSlider('Slide', motors.slide, motorsPercent.slide);
             
             // Mettre à jour l'état des modes
             updateModeStatus(data.modes);
@@ -1543,8 +1545,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         let isUpdatingFromServer = false;
         
         function updateDirectAxisSlider(axis, position, percent) {
-            const slider = document.getElementById(`${axis}Slider`);
-            const valueDisplay = document.getElementById(`${axis}Value`);
+            const slider = document.getElementById(`axis${axis}`);
+            const valueDisplay = document.getElementById(`axis${axis}Value`);
             
             if (slider && valueDisplay) {
                 // Marquer qu'on est en train de mettre à jour depuis le serveur
