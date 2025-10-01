@@ -1536,6 +1536,22 @@ void setupWebServer() {
     request->send(200, "application/json", jsonString);
   });
   
+  //==================== NEW: Axes Status Endpoint ====================
+  webServer.on("/api/axes/status", HTTP_GET, [](AsyncWebServerRequest *req){
+    DynamicJsonDocument doc(256);
+    // Normalise les positions entre 0 et 1 selon min/max de chaque axe
+    auto norm = [](long pos, long min, long max){
+      return (max!=min)? (float)(pos - min) / (float)(max - min) : 0.0f;
+    };
+    doc["pan"]   = norm(steppers[0]->getCurrentPosition(), cfg[0].min_limit, cfg[0].max_limit);
+    doc["tilt"]  = norm(steppers[1]->getCurrentPosition(), cfg[1].min_limit, cfg[1].max_limit);
+    doc["zoom"]  = norm(steppers[2]->getCurrentPosition(), cfg[2].min_limit, cfg[2].max_limit);
+    doc["slide"] = norm(steppers[3]->getCurrentPosition(), cfg[3].min_limit, cfg[3].max_limit);
+    String out; 
+    serializeJson(doc, out);
+    req->send(200, "application/json", out);
+  });
+  
   webServer.begin();
   Serial.println("🌐 Web server started");
 }
