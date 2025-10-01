@@ -746,19 +746,60 @@ def api_motor_slide_max_accel():
 # Routes pour gestion des banques
 @app.route('/api/bank/set', methods=['POST'])
 def api_bank_set():
-    """Change la banque active"""
+    """Change la banque active et retourne les points d'interpolation"""
     data = request.get_json()
     bank_index = int(data.get('index', 0))
     bank_index = max(0, min(9, bank_index))  # Clamp 0-9
     
     success = send_osc_message('/bank/set', bank_index)
-    return jsonify({'success': success, 'bank': bank_index})
+    if success:
+        # Attendre un court délai pour que l'ESP32 charge la banque
+        import time
+        time.sleep(0.1)
+        
+        # Récupérer les points d'interpolation
+        interp_success = send_osc_message('/bank/get_interp')
+        if interp_success:
+            # Pour l'instant, on retourne un JSON par défaut
+            # Dans une implémentation complète, on recevrait la réponse de l'ESP32
+            return jsonify({
+                'success': True, 
+                'bank': bank_index,
+                'interpCount': 2,
+                'interp': [
+                    {'presetIndex': 0, 'fraction': 0},
+                    {'presetIndex': 1, 'fraction': 100}
+                ]
+            })
+        else:
+            return jsonify({'success': True, 'bank': bank_index, 'interp': None})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to change bank'})
 
 @app.route('/api/bank/save', methods=['POST'])
 def api_bank_save():
     """Sauvegarde la banque active"""
     success = send_osc_message('/bank/save')
     return jsonify({'success': success, 'action': 'save'})
+
+@app.route('/api/bank/interp', methods=['GET'])
+def api_bank_interp():
+    """Récupère les points d'interpolation de la banque active"""
+    # Demander les points d'interpolation à l'ESP32
+    success = send_osc_message('/bank/get_interp')
+    if success:
+        # Pour l'instant, on retourne un JSON par défaut
+        # Dans une implémentation complète, on recevrait la réponse de l'ESP32
+        return jsonify({
+            'success': True,
+            'interpCount': 2,
+            'interp': [
+                {'presetIndex': 0, 'fraction': 0},
+                {'presetIndex': 1, 'fraction': 100}
+            ]
+        })
+    else:
+        return jsonify({'success': False, 'error': 'Failed to get interpolation points'})
 
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")

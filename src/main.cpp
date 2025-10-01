@@ -1265,6 +1265,22 @@ void processOSC() {
             activeBank = idx;
             loadBank(idx);
             Serial.printf("🏦 Banque active changée vers %d\n", idx);
+            
+            // Renvoyer les points d'interpolation après le chargement
+            DynamicJsonDocument doc(1024);
+            doc["interpCount"] = interpCount;
+            
+            JsonArray interpArray = doc.createNestedArray("interp");
+            for (int i = 0; i < interpCount; i++) {
+              JsonObject interp = interpArray.createNestedObject();
+              interp["presetIndex"] = interpPoints[i].presetIndex;
+              interp["fraction"] = interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
+            }
+            
+            // Sérialiser et envoyer
+            String jsonString;
+            serializeJson(doc, jsonString);
+            Serial.printf("📤 Bank %d interp points: %s\n", idx, jsonString.c_str());
           }
         }
       });
@@ -1272,6 +1288,27 @@ void processOSC() {
       msg.dispatch("/bank/save", [](OSCMessage &m){
         saveActiveBank();
         Serial.printf("💾 Banque %d sauvegardée\n", activeBank);
+      });
+
+      msg.dispatch("/bank/get_interp", [](OSCMessage &m){
+        // Construire le JSON avec les points d'interpolation actuels
+        DynamicJsonDocument doc(1024);
+        doc["interpCount"] = interpCount;
+        
+        JsonArray interpArray = doc.createNestedArray("interp");
+        for (int i = 0; i < interpCount; i++) {
+          JsonObject interp = interpArray.createNestedObject();
+          interp["presetIndex"] = interpPoints[i].presetIndex;
+          interp["fraction"] = interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
+        }
+        
+        // Sérialiser en string
+        String jsonString;
+        serializeJson(doc, jsonString);
+        
+        // Envoyer via OSC (on va utiliser une route spéciale pour le retour)
+        // Pour l'instant, on log le JSON
+        Serial.printf("📤 Interp points JSON: %s\n", jsonString.c_str());
       });
 
       msg.dispatch("/preset/set", [](OSCMessage &m){

@@ -1425,11 +1425,62 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                     
                     // Sauvegarder la banque active dans localStorage
                     localStorage.setItem('activeBank', bankIndex);
+                    
+                    // Mettre à jour les points d'interpolation si disponibles
+                    if (data.interp && data.interpCount) {
+                        updateInterpolationUI(data.interpCount, data.interp);
+                    }
                 } else {
                     document.getElementById('bankStatus').textContent = 'Error loading bank';
                     document.getElementById('bankStatus').style.color = '#f44336';
                 }
             });
+        }
+
+        // Fonction pour mettre à jour l'interface d'interpolation
+        function updateInterpolationUI(interpCount, interpPoints) {
+            // Vider le conteneur des points supplémentaires
+            const extraContainer = document.getElementById('extraInterpPoints');
+            if (extraContainer) {
+                extraContainer.innerHTML = '';
+            }
+            
+            // Mettre à jour les points existants (0 et 1)
+            if (interpPoints.length > 0) {
+                const preset0 = document.getElementById('interpPreset0');
+                const pos0 = document.getElementById('interpPos0');
+                if (preset0 && pos0) {
+                    preset0.value = interpPoints[0].presetIndex;
+                    pos0.value = interpPoints[0].fraction;
+                }
+            }
+            
+            if (interpPoints.length > 1) {
+                const preset1 = document.getElementById('interpPreset1');
+                const pos1 = document.getElementById('interpPos1');
+                if (preset1 && pos1) {
+                    preset1.value = interpPoints[1].presetIndex;
+                    pos1.value = interpPoints[1].fraction;
+                }
+            }
+            
+            // Ajouter les points supplémentaires (2 et plus)
+            for (let i = 2; i < interpCount; i++) {
+                if (i < interpPoints.length) {
+                    // Ajouter un nouveau point
+                    addInterpPoint();
+                    
+                    // Remplir les valeurs
+                    const presetField = document.getElementById(`interpPreset${i}`);
+                    const posField = document.getElementById(`interpPos${i}`);
+                    if (presetField && posField) {
+                        presetField.value = interpPoints[i].presetIndex;
+                        posField.value = interpPoints[i].fraction;
+                    }
+                }
+            }
+            
+            console.log(`Updated interpolation UI with ${interpCount} points`);
         }
 
         function saveBank() {
