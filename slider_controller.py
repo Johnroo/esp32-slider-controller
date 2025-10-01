@@ -743,6 +743,23 @@ def api_motor_slide_max_accel():
     success = send_osc_message('/motor/slide/max_accel', accel)
     return jsonify({'success': success, 'accel': accel})
 
+# Routes pour gestion des banques
+@app.route('/api/bank/set', methods=['POST'])
+def api_bank_set():
+    """Change la banque active"""
+    data = request.get_json()
+    bank_index = int(data.get('index', 0))
+    bank_index = max(0, min(9, bank_index))  # Clamp 0-9
+    
+    success = send_osc_message('/bank/set', bank_index)
+    return jsonify({'success': success, 'bank': bank_index})
+
+@app.route('/api/bank/save', methods=['POST'])
+def api_bank_save():
+    """Sauvegarde la banque active"""
+    success = send_osc_message('/bank/save')
+    return jsonify({'success': success, 'action': 'save'})
+
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")
     print(f"OSC Target: {ESP32_IP}:{ESP32_OSC_PORT}")

@@ -574,6 +574,32 @@
             <button class="btn btn-info" onclick="applyJoystickConfig()">🎮 Apply Joystick Config</button>
         </div>
 
+        <!-- Bank Management -->
+        <div class="control-panel">
+            <h3>🏦 Bank Management</h3>
+            
+            <div class="control-group">
+                <label>Active Bank:</label>
+                <select id="bankSelector" onchange="changeBank()">
+                    <option value="0" selected>Bank 0</option>
+                    <option value="1">Bank 1</option>
+                    <option value="2">Bank 2</option>
+                    <option value="3">Bank 3</option>
+                    <option value="4">Bank 4</option>
+                    <option value="5">Bank 5</option>
+                    <option value="6">Bank 6</option>
+                    <option value="7">Bank 7</option>
+                    <option value="8">Bank 8</option>
+                    <option value="9">Bank 9</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <button onclick="saveBank()" class="btn-primary">💾 Save Bank</button>
+                <span id="bankStatus" style="margin-left: 10px; color: #4CAF50;">Ready</span>
+            </div>
+        </div>
+
         <!-- Multi-Preset Interpolation Axis -->
         <div class="control-panel">
             <h3>🎯 Interpolation Axis (Multi-Preset Morphing)</h3>
@@ -1305,6 +1331,51 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({threshold: value})
+            });
+        }
+
+        // Bank Management functions
+        function changeBank() {
+            const bankIndex = parseInt(document.getElementById('bankSelector').value);
+            
+            fetch('/api/bank/set', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({index: bankIndex})
+            }).then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('bankStatus').textContent = `Bank ${bankIndex} loaded`;
+                    document.getElementById('bankStatus').style.color = '#4CAF50';
+                    
+                    // Recharger les presets et l'interpolation
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } else {
+                    document.getElementById('bankStatus').textContent = 'Error loading bank';
+                    document.getElementById('bankStatus').style.color = '#f44336';
+                }
+            });
+        }
+
+        function saveBank() {
+            document.getElementById('bankStatus').textContent = 'Saving...';
+            document.getElementById('bankStatus').style.color = '#ff9800';
+            
+            fetch('/api/bank/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            }).then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('bankStatus').textContent = 'Bank saved!';
+                    document.getElementById('bankStatus').style.color = '#4CAF50';
+                } else {
+                    document.getElementById('bankStatus').textContent = 'Error saving bank';
+                    document.getElementById('bankStatus').style.color = '#f44336';
+                }
             });
         }
 

@@ -11,6 +11,8 @@
 #include <OSCBundle.h>
 #include <OSCData.h>
 #include <math.h>
+#include <ArduinoJson.h>
+#include <Preferences.h>
 
 //==================== Configuration ====================
 #define NUM_MOTORS 4
@@ -123,6 +125,17 @@ struct InterpPoint {
 
 InterpPoint interpPoints[6];  // jusqu'à 6 points (A, B, C, D, E, F)
 uint8_t interpCount = 2;      // par défaut 2 points (A@0%, B@100%)
+
+//==================== Bank System ====================
+struct Bank {
+  Preset presets[8];
+  InterpPoint interpPoints[6];
+  uint8_t interpCount;
+};
+
+Bank banks[10];              // 10 banques de presets
+uint8_t activeBank = 0;      // banque active (0-9)
+Preferences nvs;             // pour la persistance NVS
 
 struct InterpAuto {
   bool active = false;
@@ -465,6 +478,119 @@ uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long go
     if (ok) break;
   }
   return (uint32_t)lround(T*1000.0);
+}
+
+//==================== Bank Management Functions ====================
+void saveBank(uint8_t idx) {
+  if (idx >= 10) return;
+  
+  // Initialiser NVS
+  if (!nvs.begin("banks")) {
+    Serial.println("❌ Erreur NVS");
+    return;
+  }
+  
+  // Créer le JSON
+  DynamicJsonDocument doc(4096);
+  JsonArray presetsArray = doc.createNestedArray("presets");
+  JsonArray interpArray = doc.createNestedArray("interp");
+  
+  // Sérialiser les presets
+  for (int i = 0; i < 8; i++) {
+    JsonObject preset = presetsArray.createNestedObject();
+    preset["p"] = presets[i].p;
+    preset["t"] = presets[i].t;
+    preset["z"] = presets[i].z;
+    preset["s"] = presets[i].s;
+    preset["mode"] = presets[i].mode;
+    preset["pan_anchor"] = presets[i].pan_anchor;
+    preset["tilt_anchor"] = presets[i].tilt_anchor;
+  }
+  
+  // Sérialiser l'interpolation
+  for (int i = 0; i < interpCount; i++) {
+    JsonObject interp = interpArray.createNestedObject();
+    interp["presetIndex"] = interpPoints[i].presetIndex;
+    interp["fraction"] = interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
+  }
+  doc["interpCount"] = interpCount;
+  
+  // Sérialiser en string
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  // Sauvegarder en NVS
+  String key = "bank" + String(idx);
+  nvs.putString(key.c_str(), jsonString);
+  nvs.end();
+  
+  Serial.printf("💾 Banque %d sauvegardée\n", idx);
+}
+
+void loadBank(uint8_t idx) {
+  if (idx >= 10) return;
+  
+  // Initialiser NVS
+  if (!nvs.begin("banks")) {
+    Serial.println("❌ Erreur NVS");
+    return;
+  }
+  
+  String key = "bank" + String(idx);
+  String jsonString = nvs.getString(key.c_str());
+  nvs.end();
+  
+  if (jsonString.length() == 0) {
+    Serial.printf("⚠️ Banque %d vide, initialisation par défaut\n", idx);
+    // Initialiser avec des valeurs par défaut
+    for (int i = 0; i < 8; i++) {
+      presets[i] = {0, 0, 0, 0, 0, 0, 0};
+    }
+    interpPoints[0] = {0, 0.0f};
+    interpPoints[1] = {1, 1.0f};
+    interpCount = 2;
+    return;
+  }
+  
+  // Parser le JSON
+  DynamicJsonDocument doc(4096);
+  DeserializationError error = deserializeJson(doc, jsonString);
+  if (error) {
+    Serial.printf("❌ Erreur JSON banque %d: %s\n", idx, error.c_str());
+    return;
+  }
+  
+  // Charger les presets
+  JsonArray presetsArray = doc["presets"];
+  for (int i = 0; i < 8 && i < presetsArray.size(); i++) {
+    JsonObject preset = presetsArray[i];
+    presets[i].p = preset["p"];
+    presets[i].t = preset["t"];
+    presets[i].z = preset["z"];
+    presets[i].s = preset["s"];
+    presets[i].mode = preset["mode"];
+    presets[i].pan_anchor = preset["pan_anchor"];
+    presets[i].tilt_anchor = preset["tilt_anchor"];
+  }
+  
+  // Charger l'interpolation
+  JsonArray interpArray = doc["interp"];
+  interpCount = min((int)interpArray.size(), 6);
+  for (int i = 0; i < interpCount; i++) {
+    JsonObject interp = interpArray[i];
+    interpPoints[i].presetIndex = interp["presetIndex"];
+    interpPoints[i].fraction = interp["fraction"] / 100.0f; // Convertir depuis pourcentage
+  }
+  
+  Serial.printf("📂 Banque %d chargée (%d presets, %d points interp)\n", idx, 8, interpCount);
+}
+
+void saveActiveBank() {
+  saveBank(activeBank);
+}
+
+void loadActiveBank() {
+  loadBank(activeBank);
 }
 
 //==================== NEW: Mapping slide->pan/tilt ====================
@@ -1107,6 +1233,24 @@ void processOSC() {
           }
         }
       });
+
+      //==================== Bank Management Routes ====================
+      msg.dispatch("/bank/set", [](OSCMessage &m){
+        if (m.size() > 0) {
+          uint8_t idx = m.getInt(0);
+          if (idx < 10) {
+            activeBank = idx;
+            loadBank(idx);
+            Serial.printf("🏦 Banque active changée vers %d\n", idx);
+          }
+        }
+      });
+
+      msg.dispatch("/bank/save", [](OSCMessage &m){
+        saveActiveBank();
+        Serial.printf("💾 Banque %d sauvegardée\n", activeBank);
+      });
+
       msg.dispatch("/preset/set", [](OSCMessage &m){
         int i = m.getInt(0);
         presets[i].p = m.getInt(1);
@@ -1299,16 +1443,13 @@ void setup() {
   Serial.printf("🎯 Jog speeds: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
                 PAN_JOG_SPEED, TILT_JOG_SPEED, SLIDE_JOG_SPEED);
   
-  // Initialiser l'axe d'interpolation par défaut (2 points: Preset0@0%, Preset1@100%)
-  interpPoints[0] = {0, 0.0f};
-  interpPoints[1] = {1, 1.0f};
-  interpCount = 2;
+  // Charger la banque 0 au démarrage
+  loadBank(0);
+  Serial.println("📂 Banque 0 chargée au démarrage");
   
   // Désactiver les anciens modes par défaut
   follow.enabled = false;
   slideAB.enabled = false;
-  
-  Serial.println("🎯 Interpolation axis initialized: 2 points (Preset0@0%, Preset1@100%)");
   
   // Initialiser l'engine
   engine.init();
