@@ -579,7 +579,7 @@ void loadBank(uint8_t idx) {
   for (int i = 0; i < interpCount; i++) {
     JsonObject interp = interpArray[i];
     interpPoints[i].presetIndex = interp["presetIndex"];
-    interpPoints[i].fraction = interp["fraction"] / 100.0f; // Convertir depuis pourcentage
+    interpPoints[i].fraction = interp["fraction"].as<float>() / 100.0f; // Convertir depuis pourcentage
   }
   
   Serial.printf("📂 Banque %d chargée (%d presets, %d points interp)\n", idx, 8, interpCount);
