@@ -563,41 +563,85 @@
             <button class="btn btn-info" onclick="applyJoystickConfig()">🎮 Apply Joystick Config</button>
         </div>
 
-        <!-- Follow Mapping Configuration -->
+        <!-- Multi-Preset Interpolation Axis -->
         <div class="control-panel">
-            <h3>🎯 Follow Mapping</h3>
-            <div class="control-group">
-                <label>Pan/Tilt Follow Slide:</label>
-                <input type="checkbox" id="followEnabled" checked onchange="toggleFollow()">
-                <span id="followStatus">ON</span>
+            <h3>🎯 Interpolation Axis (Multi-Preset Morphing)</h3>
+            
+            <!-- Interpolation Points Configuration -->
+            <div id="interpPointsContainer">
+                <div class="control-group">
+                    <label>Point A:</label>
+                    <select id="interpPreset0">
+                        <option value="0" selected>Preset 0</option>
+                        <option value="1">Preset 1</option>
+                        <option value="2">Preset 2</option>
+                        <option value="3">Preset 3</option>
+                        <option value="4">Preset 4</option>
+                        <option value="5">Preset 5</option>
+                        <option value="6">Preset 6</option>
+                        <option value="7">Preset 7</option>
+                    </select>
+                    <span>@</span>
+                    <input type="number" id="interpPos0" min="0" max="100" step="1" value="0" style="width: 60px;">
+                    <span>%</span>
+                </div>
+                
+                <div class="control-group">
+                    <label>Point B:</label>
+                    <select id="interpPreset1">
+                        <option value="0">Preset 0</option>
+                        <option value="1" selected>Preset 1</option>
+                        <option value="2">Preset 2</option>
+                        <option value="3">Preset 3</option>
+                        <option value="4">Preset 4</option>
+                        <option value="5">Preset 5</option>
+                        <option value="6">Preset 6</option>
+                        <option value="7">Preset 7</option>
+                    </select>
+                    <span>@</span>
+                    <input type="number" id="interpPos1" min="0" max="100" step="1" value="100" style="width: 60px;">
+                    <span>%</span>
+                </div>
+                
+                <div id="extraInterpPoints"></div>
             </div>
-        </div>
-
-        <!-- Infinite AB Mode -->
-        <div class="control-panel">
-            <h3>♾️ Infinite AB Mode</h3>
+            
             <div class="control-group">
-                <label>AB Mode:</label>
-                <input type="checkbox" id="abEnabled" onchange="toggleAB()">
-                <span id="abStatus">OFF</span>
+                <button onclick="addInterpPoint()" class="btn-secondary" id="addPointBtn">+ Add Point (2/6)</button>
+                <button onclick="applyInterpPoints()" class="btn-primary">Apply Points</button>
             </div>
+            
+            <hr>
+            
+            <!-- Mode Control -->
             <div class="control-group">
-                <label>Point A (0-100%):</label>
-                <input type="range" id="pointA" min="0" max="100" step="1" value="0" oninput="updatePointAValue()">
-                <span id="pointAValue">0%</span>
+                <label>Mode:</label>
+                <select id="interpMode" onchange="toggleInterpMode()">
+                    <option value="manual" selected>Manual Jog</option>
+                    <option value="auto">Auto Morphing</option>
+                </select>
             </div>
-            <div class="control-group">
-                <label>Point B (0-100%):</label>
-                <input type="range" id="pointB" min="0" max="100" step="1" value="100" oninput="updatePointBValue()">
-                <span id="pointBValue">100%</span>
+            
+            <!-- Manual Mode -->
+            <div id="manualControls">
+                <div class="control-group">
+                    <label>Position (0-100%):</label>
+                    <input type="range" id="interpJogSlider" min="0" max="100" step="1" value="0" oninput="updateInterpJogValue()">
+                    <span id="interpJogValue">0%</span>
+                </div>
             </div>
-            <div class="control-group">
-                <label>Duration (seconds):</label>
-                <input type="range" id="abDuration" min="0.5" max="30.0" step="0.5" value="4.0" oninput="updateDurationValue()">
-                <span id="durationValue">4.0s</span>
-            </div>
-            <div class="control-group">
-                <button onclick="setABPoints()" class="btn-primary">Set AB Points</button>
+            
+            <!-- Auto Mode -->
+            <div id="autoControls" style="display: none;">
+                <div class="control-group">
+                    <label>Duration (seconds):</label>
+                    <input type="number" id="interpAutoDuration" min="0.5" max="60.0" step="0.5" value="5.0" style="width: 80px;">
+                    <span>s</span>
+                </div>
+                <div class="control-group">
+                    <button onclick="startAutoMorphing()" class="btn-success">▶️ Start Auto Morphing</button>
+                    <button onclick="stopAutoMorphing()" class="btn-danger">⏹️ Stop</button>
+                </div>
             </div>
         </div>
         
@@ -938,55 +982,128 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             });
         }
         
-        // Follow Mapping functions
-        function toggleFollow() {
-            const enabled = document.getElementById('followEnabled').checked;
-            document.getElementById('followStatus').textContent = enabled ? 'ON' : 'OFF';
+        // Interpolation Axis functions
+        let interpPointCount = 2;  // Commence avec 2 points (A et B)
+        const maxInterpPoints = 6;
+
+        function addInterpPoint() {
+            if (interpPointCount >= maxInterpPoints) return;
             
-            fetch('/api/follow/enable', {
+            const extraContainer = document.getElementById('extraInterpPoints');
+            const pointLabel = String.fromCharCode(65 + interpPointCount);  // C, D, E, F
+            
+            const pointDiv = document.createElement('div');
+            pointDiv.className = 'control-group';
+            pointDiv.id = `interpPoint${interpPointCount}`;
+            pointDiv.innerHTML = `
+                <label>Point ${pointLabel}:</label>
+                <select id="interpPreset${interpPointCount}">
+                    <option value="0">Preset 0</option>
+                    <option value="1">Preset 1</option>
+                    <option value="2">Preset 2</option>
+                    <option value="3">Preset 3</option>
+                    <option value="4">Preset 4</option>
+                    <option value="5">Preset 5</option>
+                    <option value="6">Preset 6</option>
+                    <option value="7">Preset 7</option>
+                </select>
+                <span>@</span>
+                <input type="number" id="interpPos${interpPointCount}" min="0" max="100" step="1" value="50" style="width: 60px;">
+                <span>%</span>
+                <button onclick="removeInterpPoint(${interpPointCount})" class="btn-danger" style="margin-left: 10px;">✖️</button>
+            `;
+            
+            extraContainer.appendChild(pointDiv);
+            interpPointCount++;
+            
+            document.getElementById('addPointBtn').textContent = `+ Add Point (${interpPointCount}/${maxInterpPoints})`;
+            if (interpPointCount >= maxInterpPoints) {
+                document.getElementById('addPointBtn').disabled = true;
+            }
+        }
+
+        function removeInterpPoint(index) {
+            const pointDiv = document.getElementById(`interpPoint${index}`);
+            if (pointDiv) {
+                pointDiv.remove();
+                interpPointCount--;
+                document.getElementById('addPointBtn').textContent = `+ Add Point (${interpPointCount}/${maxInterpPoints})`;
+                document.getElementById('addPointBtn').disabled = false;
+            }
+        }
+
+        function applyInterpPoints() {
+            const points = [];
+            
+            // Collecter tous les points définis
+            for (let i = 0; i < 2; i++) {  // Points fixes A et B
+                const preset = parseInt(document.getElementById(`interpPreset${i}`).value);
+                const position = parseFloat(document.getElementById(`interpPos${i}`).value) / 100.0;
+                points.push({preset: preset, position: position});
+            }
+            
+            // Points additionnels
+            for (let i = 2; i < 6; i++) {
+                const presetEl = document.getElementById(`interpPreset${i}`);
+                if (presetEl) {
+                    const preset = parseInt(presetEl.value);
+                    const position = parseFloat(document.getElementById(`interpPos${i}`).value) / 100.0;
+                    points.push({preset: preset, position: position});
+                }
+            }
+            
+            // Trier par position
+            points.sort((a, b) => a.position - b.position);
+            
+            fetch('/api/interpolation/setpoints', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({enable: enabled})
+                body: JSON.stringify({points: points})
             });
         }
 
-        // AB Mode functions
-        function toggleAB() {
-            const enabled = document.getElementById('abEnabled').checked;
-            document.getElementById('abStatus').textContent = enabled ? 'ON' : 'OFF';
+        function toggleInterpMode() {
+            const mode = document.getElementById('interpMode').value;
             
-            fetch('/api/slide/ab', {
+            if (mode === 'auto') {
+                document.getElementById('manualControls').style.display = 'none';
+                document.getElementById('autoControls').style.display = 'block';
+            } else {
+                document.getElementById('manualControls').style.display = 'block';
+                document.getElementById('autoControls').style.display = 'none';
+                // Arrêter le mode auto si actif
+                stopAutoMorphing();
+            }
+        }
+
+        function updateInterpJogValue() {
+            const value = document.getElementById('interpJogSlider').value;
+            document.getElementById('interpJogValue').textContent = value + '%';
+            
+            // Envoyer la position en temps réel
+            const position = parseFloat(value) / 100.0;
+            fetch('/api/interpolation/goto', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({enable: enabled})
+                body: JSON.stringify({position: position})
             });
         }
 
-        function updatePointAValue() {
-            document.getElementById('pointAValue').textContent = document.getElementById('pointA').value + '%';
-        }
-
-        function updatePointBValue() {
-            document.getElementById('pointBValue').textContent = document.getElementById('pointB').value + '%';
-        }
-
-        function updateDurationValue() {
-            document.getElementById('durationValue').textContent = document.getElementById('abDuration').value + 's';
-        }
-
-        function setABPoints() {
-            const pointA = parseFloat(document.getElementById('pointA').value) / 100.0;
-            const pointB = parseFloat(document.getElementById('pointB').value) / 100.0;
-            const duration = parseFloat(document.getElementById('abDuration').value);
+        function startAutoMorphing() {
+            const duration = parseFloat(document.getElementById('interpAutoDuration').value);
             
-            fetch('/api/slide/ab/set', {
+            fetch('/api/interpolation/auto', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    point_a: pointA,
-                    point_b: pointB,
-                    duration: duration
-                })
+                body: JSON.stringify({enable: true, duration: duration})
+            });
+        }
+
+        function stopAutoMorphing() {
+            fetch('/api/interpolation/auto', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enable: false, duration: 0})
             });
         }
 
@@ -999,11 +1116,10 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         document.getElementById('axisTiltValue').textContent = '0.50';
         document.getElementById('axisZoomValue').textContent = '0.50';
         document.getElementById('axisSlideValue').textContent = '0.50';
+        document.getElementById('interpJogValue').textContent = '0%';
         
-        // Initialize AB mode values
-        document.getElementById('pointAValue').textContent = '0%';
-        document.getElementById('pointBValue').textContent = '100%';
-        document.getElementById('durationValue').textContent = '4.0s';
+        // Appliquer les points d'interpolation par défaut au démarrage
+        applyInterpPoints();
         
         //==================== Joystick Canvas ====================
         const joyCanvas = document.getElementById('joyCanvas');
