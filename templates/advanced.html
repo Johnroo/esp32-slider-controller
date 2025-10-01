@@ -404,17 +404,6 @@
                     </div>
                 </div>
                 
-  <!-- Homing / StallGuard -->
-  <div class="panel">
-    <h3>🏠 Homing Slide (TMC2209 StallGuard)</h3>
-    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
-      <button class="btn" id="btnSlideHome">🏠 Home Slide</button>
-      <label for="sgthrsRange">SGTHRS:</label>
-      <input type="range" id="sgthrsRange" min="0" max="255" value="8" step="1" style="width:220px">
-      <span id="sgthrsVal">8</span>
-    </div>
-    <div class="hint">Le homing utilise StallGuard (spreadCycle, TCOOLTHRS max). Ajuste SGTHRS si nécessaire.</div>
-  </div>
 
                 <div class="control-group">
                     <label>Duration (seconds):</label>
@@ -728,6 +717,21 @@
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="slideMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateSlideAccel()">
                     <span id="slideAccelValue">12000</span>
+                </div>
+                
+                <!-- Homing / StallGuard -->
+                <hr style="margin: 15px 0; border-color: #444;">
+                <div class="control-group">
+                    <label>🏠 Homing Slide (TMC2209 StallGuard):</label>
+                    <button class="btn" id="btnSlideHome" onclick="homeSlide()">🏠 Home Slide</button>
+                </div>
+                <div class="control-group">
+                    <label>SGTHRS (0-255):</label>
+                    <input type="range" id="sgthrsRange" min="0" max="255" value="8" step="1" style="width: 200px;" oninput="updateSGTHRS()">
+                    <span id="sgthrsVal">8</span>
+                </div>
+                <div class="hint" style="font-size: 12px; color: #888; margin-top: 5px;">
+                    Le homing utilise StallGuard (spreadCycle, TCOOLTHRS max). Ajuste SGTHRS si nécessaire.
                 </div>
             </div>
         </div>
@@ -1282,6 +1286,25 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({accel: accel})
+            });
+        }
+
+        function homeSlide() {
+            fetch('/api/slide/home', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            });
+        }
+
+        function updateSGTHRS() {
+            const value = parseInt(document.getElementById('sgthrsRange').value);
+            document.getElementById('sgthrsVal').textContent = value;
+            
+            fetch('/api/slide/sgthrs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({threshold: value})
             });
         }
 
