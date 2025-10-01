@@ -650,6 +650,18 @@ def api_interpolation_goto():
     success = send_osc_message('/interp/goto', position)
     return jsonify({'success': success, 'position': position})
 
+@app.route('/api/interpolation/jog', methods=['POST'])
+def api_interpolation_jog():
+    """Jog de vitesse sur l'axe d'interpolation"""
+    data = request.get_json()
+    value = float(data.get('value', 0.0))
+    
+    # Clamp entre -1.0 et 1.0
+    value = max(-1.0, min(1.0, value))
+    
+    success = send_osc_message('/interp/jog', value)
+    return jsonify({'success': success, 'value': value})
+
 # Routes pour configuration moteurs
 @app.route('/api/motor/pan/max_speed', methods=['POST'])
 def api_motor_pan_max_speed():

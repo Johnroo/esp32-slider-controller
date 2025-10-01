@@ -128,11 +128,15 @@ struct InterpAuto {
   bool active = false;
   uint32_t t0_ms = 0;
   uint32_t T_ms = 5000;   // durée du parcours 0->100%
+  int dir = +1;           // sens courant (+1 = 0→100%, -1 = 100%→0%)
 } interpAuto;
 
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
+
+// Jog interpolation manuel
+float interp_jog_cmd = 0.0f;    // -1..+1 (vitesse normalisée)
 
 // Jog Pan/Tilt (vitesses de jog) - dérivées de la config
 float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
@@ -528,14 +532,15 @@ void coordinator_tick(){
   if (interpAuto.active) {
     float tau = (float)(now - interpAuto.t0_ms) / (float)interpAuto.T_ms;
     if (tau >= 1.0f) {
-      tau = 1.0f;
-      interpAuto.active = false;
-      Serial.println("✅ Interpolation automatique terminée");
+      tau = 0.0f;
+      interpAuto.t0_ms = now;
+      // Inversion de direction pour boucle continue
+      interpAuto.dir = (interpAuto.dir > 0 ? -1 : +1);
     }
     
-    // Profil minimum-jerk pour un mouvement fluide
+    // Profil minimum-jerk pour un mouvement fluide aller/retour
     float s = s_minjerk(tau);
-    float u = s;  // fraction actuelle sur l'axe (0->1)
+    float u = (interpAuto.dir > 0 ? s : (1.0f - s));
     
     // Calculer la position interpolée pour tous les axes
     long P, T, Z, S;
@@ -590,6 +595,53 @@ void coordinator_tick(){
   // 2) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
   if (!sync_move.active){
     float dt = dt_ms / 1000.0f;
+    
+    // Jog interpolation manuel (prioritaire)
+    static float interp_fraction = 0.0f;  // fraction courante sur l'axe d'interpolation
+    if (fabs(interp_jog_cmd) > 0.001f) {
+      // Déterminer le segment [j, j+1] de la courbe correspondant à interp_fraction
+      uint8_t j = 0;
+      while (j < interpCount - 1 && interpPoints[j+1].fraction < interp_fraction) {
+        j++;
+      }
+      float u0 = interpPoints[j].fraction;
+      float u1 = interpPoints[j+1].fraction;
+      if (u1 < u0) u1 = u0;  // sécurité (au cas où, mais interpPoints est trié)
+      
+      // Calculer les écarts en pas sur ce segment pour chaque axe
+      uint8_t presetA = interpPoints[j].presetIndex;
+      uint8_t presetB = interpPoints[j+1].presetIndex;
+      long dP = presets[presetB].p - presets[presetA].p;
+      long dT = presets[presetB].t - presets[presetA].t;
+      long dZ = presets[presetB].z - presets[presetA].z;
+      long dS = presets[presetB].s - presets[presetA].s;
+      float frac_len = (u1 - u0 > 0.0f ? u1 - u0 : 1.0f);
+      
+      // Calcul de la vitesse fractionnelle maximale autorisée (steps/s limitant)
+      float maxFracSpeed = INFINITY;
+      if (dP != 0) maxFracSpeed = fmin(maxFracSpeed, cfg[0].max_speed * frac_len / fabs(dP));
+      if (dT != 0) maxFracSpeed = fmin(maxFracSpeed, cfg[1].max_speed * frac_len / fabs(dT));
+      if (dZ != 0) maxFracSpeed = fmin(maxFracSpeed, cfg[2].max_speed * frac_len / fabs(dZ));
+      if (dS != 0) maxFracSpeed = fmin(maxFracSpeed, cfg[3].max_speed * frac_len / fabs(dS));
+      if (maxFracSpeed == INFINITY) {
+        maxFracSpeed = 0.0f; // aucun mouvement requis si tous décalages nuls
+      }
+      
+      // Intégration de la position fractionnelle en fonction de la vitesse demandée
+      float du = interp_jog_cmd * maxFracSpeed * dt;
+      interp_fraction = clampF(interp_fraction + du, 0.0f, 1.0f);
+      
+      // Calculer la nouvelle position interpolée et l'envoyer aux moteurs
+      long P, T, Z, S;
+      computeInterpolatedPosition(interp_fraction, P, T, Z, S);
+      steppers[0]->moveTo(P);
+      steppers[1]->moveTo(T);
+      steppers[2]->moveTo(Z);
+      steppers[3]->moveTo(S);
+      
+      // On quitte pour ne pas interférer avec les autres jogs
+      return;
+    }
     
     // Jog Pan
     if (fabs(joy_filt.pan) > 0.001f) {
@@ -874,6 +926,20 @@ void processOSC() {
         
         Serial.printf("🎛️ Manual interp goto %.1f%% -> P=%ld T=%ld Z=%ld S=%ld\n", 
                       fraction * 100.0f, P, T, Z, S);
+      });
+
+      msg.dispatch("/interp/jog", [](OSCMessage &m){
+        float value = clampF(m.getFloat(0), -1.0f, 1.0f);
+        
+        // Annuler les mouvements automatiques ou presets en cours
+        interpAuto.active = false;
+        sync_move.active = false;
+        slideAB.enabled = false;
+        follow.valid = false;
+        
+        // Appliquer la nouvelle consigne de vitesse de l'axe d'interpolation
+        interp_jog_cmd = value;
+        Serial.printf("🎛️ Interp jog speed = %.2f\n", value);
       });
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
