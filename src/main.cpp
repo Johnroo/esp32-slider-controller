@@ -168,13 +168,13 @@ struct AxisConfig {
 
 AxisConfig cfg[NUM_MOTORS] = {
   // Pan
-  {-27106, 27106, 1200, 16, 20000, 12000, 0, false, true, false},
+  {-27106, 27106, 1200, 16, 20000, 12000, 0, false, false, true},
   // Tilt  
   {-2439, 2439, 1200, 16, 20000, 12000, 0, false, false, true},
   // Zoom
   {-20000, 20000, 400, 16, 20000, 8000, 0, false, false, true},
   // Slide
-  {-20000, 20000, 1800, 8, 20000, 12000, 0, false, false, true}
+  {-20000, 20000, 1800, 8, 10000, 12000, 0, false, false, true}
 };
 
 //==================== Objets moteurs ====================
@@ -950,6 +950,95 @@ void processOSC() {
           drivers[3]->SGTHRS(slide_sg_threshold);
           cfg[3].sgt = slide_sg_threshold;
           Serial.printf("\xE2\x9A\x99\xEF\xB8\x8F Nouvelle SGTHRS (slide) = %d\n", slide_sg_threshold);
+        }
+      });
+
+      //==================== Motor Configuration Routes ====================
+      msg.dispatch("/motor/pan/max_speed", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int speed = m.getInt(0);
+          if (speed >= 2000 && speed <= 20000){
+            cfg[0].max_speed = speed;
+            steppers[0]->setSpeedInHz(speed);
+            Serial.printf("🔧 Pan max_speed = %d steps/s\n", speed);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/pan/max_accel", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int accel = m.getInt(0);
+          if (accel >= 1000 && accel <= 999999){
+            cfg[0].max_accel = accel;
+            steppers[0]->setAcceleration(accel);
+            Serial.printf("🔧 Pan max_accel = %d steps/s²\n", accel);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/tilt/max_speed", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int speed = m.getInt(0);
+          if (speed >= 2000 && speed <= 20000){
+            cfg[1].max_speed = speed;
+            steppers[1]->setSpeedInHz(speed);
+            Serial.printf("🔧 Tilt max_speed = %d steps/s\n", speed);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/tilt/max_accel", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int accel = m.getInt(0);
+          if (accel >= 1000 && accel <= 999999){
+            cfg[1].max_accel = accel;
+            steppers[1]->setAcceleration(accel);
+            Serial.printf("🔧 Tilt max_accel = %d steps/s²\n", accel);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/zoom/max_speed", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int speed = m.getInt(0);
+          if (speed >= 2000 && speed <= 20000){
+            cfg[2].max_speed = speed;
+            steppers[2]->setSpeedInHz(speed);
+            Serial.printf("🔧 Zoom max_speed = %d steps/s\n", speed);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/zoom/max_accel", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int accel = m.getInt(0);
+          if (accel >= 1000 && accel <= 999999){
+            cfg[2].max_accel = accel;
+            steppers[2]->setAcceleration(accel);
+            Serial.printf("🔧 Zoom max_accel = %d steps/s²\n", accel);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/slide/max_speed", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int speed = m.getInt(0);
+          if (speed >= 2000 && speed <= 20000){
+            cfg[3].max_speed = speed;
+            steppers[3]->setSpeedInHz(speed);
+            Serial.printf("🔧 Slide max_speed = %d steps/s\n", speed);
+          }
+        }
+      });
+
+      msg.dispatch("/motor/slide/max_accel", [](OSCMessage &m){
+        if (m.size() > 0) {
+          int accel = m.getInt(0);
+          if (accel >= 1000 && accel <= 999999){
+            cfg[3].max_accel = accel;
+            steppers[3]->setAcceleration(accel);
+            Serial.printf("🔧 Slide max_accel = %d steps/s²\n", accel);
+          }
         }
       });
       msg.dispatch("/preset/set", [](OSCMessage &m){

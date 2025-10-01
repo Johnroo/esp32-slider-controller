@@ -650,6 +650,87 @@ def api_interpolation_goto():
     success = send_osc_message('/interp/goto', position)
     return jsonify({'success': success, 'position': position})
 
+# Routes pour configuration moteurs
+@app.route('/api/motor/pan/max_speed', methods=['POST'])
+def api_motor_pan_max_speed():
+    """Configure la vitesse max du moteur Pan"""
+    data = request.get_json()
+    speed = int(data.get('speed', 20000))
+    speed = max(2000, min(20000, speed))  # Clamp 2000-20000
+    
+    success = send_osc_message('/motor/pan/max_speed', speed)
+    return jsonify({'success': success, 'speed': speed})
+
+@app.route('/api/motor/pan/max_accel', methods=['POST'])
+def api_motor_pan_max_accel():
+    """Configure l'accélération max du moteur Pan"""
+    data = request.get_json()
+    accel = int(data.get('accel', 12000))
+    accel = max(1000, min(999999, accel))  # Clamp 1000-999999
+    
+    success = send_osc_message('/motor/pan/max_accel', accel)
+    return jsonify({'success': success, 'accel': accel})
+
+@app.route('/api/motor/tilt/max_speed', methods=['POST'])
+def api_motor_tilt_max_speed():
+    """Configure la vitesse max du moteur Tilt"""
+    data = request.get_json()
+    speed = int(data.get('speed', 20000))
+    speed = max(2000, min(20000, speed))  # Clamp 2000-20000
+    
+    success = send_osc_message('/motor/tilt/max_speed', speed)
+    return jsonify({'success': success, 'speed': speed})
+
+@app.route('/api/motor/tilt/max_accel', methods=['POST'])
+def api_motor_tilt_max_accel():
+    """Configure l'accélération max du moteur Tilt"""
+    data = request.get_json()
+    accel = int(data.get('accel', 12000))
+    accel = max(1000, min(999999, accel))  # Clamp 1000-999999
+    
+    success = send_osc_message('/motor/tilt/max_accel', accel)
+    return jsonify({'success': success, 'accel': accel})
+
+@app.route('/api/motor/zoom/max_speed', methods=['POST'])
+def api_motor_zoom_max_speed():
+    """Configure la vitesse max du moteur Zoom"""
+    data = request.get_json()
+    speed = int(data.get('speed', 20000))
+    speed = max(2000, min(20000, speed))  # Clamp 2000-20000
+    
+    success = send_osc_message('/motor/zoom/max_speed', speed)
+    return jsonify({'success': success, 'speed': speed})
+
+@app.route('/api/motor/zoom/max_accel', methods=['POST'])
+def api_motor_zoom_max_accel():
+    """Configure l'accélération max du moteur Zoom"""
+    data = request.get_json()
+    accel = int(data.get('accel', 12000))
+    accel = max(1000, min(999999, accel))  # Clamp 1000-999999
+    
+    success = send_osc_message('/motor/zoom/max_accel', accel)
+    return jsonify({'success': success, 'accel': accel})
+
+@app.route('/api/motor/slide/max_speed', methods=['POST'])
+def api_motor_slide_max_speed():
+    """Configure la vitesse max du moteur Slide"""
+    data = request.get_json()
+    speed = int(data.get('speed', 20000))
+    speed = max(2000, min(20000, speed))  # Clamp 2000-20000
+    
+    success = send_osc_message('/motor/slide/max_speed', speed)
+    return jsonify({'success': success, 'speed': speed})
+
+@app.route('/api/motor/slide/max_accel', methods=['POST'])
+def api_motor_slide_max_accel():
+    """Configure l'accélération max du moteur Slide"""
+    data = request.get_json()
+    accel = int(data.get('accel', 12000))
+    accel = max(1000, min(999999, accel))  # Clamp 1000-999999
+    
+    success = send_osc_message('/motor/slide/max_accel', accel)
+    return jsonify({'success': success, 'accel': accel})
+
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")
     print(f"OSC Target: {ESP32_IP}:{ESP32_OSC_PORT}")
