@@ -538,27 +538,6 @@
                 <button class="btn btn-warning" onclick="resetOffsets()">🔄 Reset Offsets</button>
             </div>
             
-            <!-- Slide Controls -->
-            <div class="panel">
-                <h3>📹 Slide Controls</h3>
-                <div class="control-group">
-                    <label>Jog Speed (-1 to +1):</label>
-                    <input type="range" class="slider" id="slideJog" min="-1" max="1" step="0.01" value="0">
-                    <div class="value-display" id="slideJogValue">0.00</div>
-                </div>
-                
-                <div class="control-group">
-                    <label>Goto Position (0 to 1):</label>
-                    <input type="range" class="slider" id="slideGoto" min="0" max="1" step="0.01" value="0.5">
-                    <div class="value-display" id="slideGotoValue">0.50</div>
-                </div>
-                
-                <div class="input-group">
-                    <input type="number" id="slideDuration" value="2.0" min="0.1" max="200.0" step="0.1" placeholder="Duration">
-                    <button class="btn" onclick="slideGotoPosition()">🚀 Go to Position</button>
-                </div>
-            </div>
-            
             <!-- Direct Axis Controls -->
             <div class="panel">
                 <h3>🎛️ Direct Axis Controls</h3>
@@ -852,17 +831,6 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             sendTiltOffset(value);
         });
         
-        document.getElementById('slideJog').addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            document.getElementById('slideJogValue').textContent = value.toFixed(2);
-            sendSlideJog(value);
-        });
-        
-        document.getElementById('slideGoto').addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            document.getElementById('slideGotoValue').textContent = value.toFixed(2);
-        });
-        
         // Direct axis controls
         document.getElementById('axisPan').addEventListener('input', function() {
             const value = parseFloat(this.value);
@@ -899,14 +867,6 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         
         function sendTiltOffset(value) {
             fetch('/api/joystick/tilt', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: value})
-            });
-        }
-        
-        function sendSlideJog(value) {
-            fetch('/api/slide/jog', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({value: value})
@@ -972,16 +932,6 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         function updateSlideSpeedValue() {
             const value = document.getElementById('slideSpeed').value;
             document.getElementById('slideSpeedValue').textContent = value + 'x';
-        }
-        
-        function slideGotoPosition() {
-            const position = parseFloat(document.getElementById('slideGoto').value);
-            const duration = parseFloat(document.getElementById('slideDuration').value);
-            fetch('/api/slide/goto', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({position: position, duration: duration})
-            });
         }
         
         function sendAxisPan(value) {
@@ -1540,8 +1490,6 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         // Initialize display values
         document.getElementById('panValue').textContent = '0.00';
         document.getElementById('tiltValue').textContent = '0.00';
-        document.getElementById('slideJogValue').textContent = '0.00';
-        document.getElementById('slideGotoValue').textContent = '0.50';
         document.getElementById('axisPanValue').textContent = '0.50';
         document.getElementById('axisTiltValue').textContent = '0.50';
         document.getElementById('axisZoomValue').textContent = '0.50';
