@@ -1608,6 +1608,79 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         }
 
         pollJoystick();
+        
+        // Polling des positions des moteurs en temps réel
+        function pollMotorPositions() {
+            fetch('/api/motors')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateMotorDisplays(data);
+                    }
+                })
+                .catch(error => {
+                    console.log('Erreur polling moteurs:', error);
+                });
+        }
+        
+        function updateMotorDisplays(data) {
+            // Mettre à jour les affichages des positions
+            const motors = data.motors;
+            const motorsPercent = data.motors_percent;
+            
+            // Mettre à jour les sliders "Direct Axis" avec les positions actuelles
+            updateDirectAxisSlider('pan', motors.pan, motorsPercent.pan);
+            updateDirectAxisSlider('tilt', motors.tilt, motorsPercent.tilt);
+            updateDirectAxisSlider('zoom', motors.zoom, motorsPercent.zoom);
+            updateDirectAxisSlider('slide', motors.slide, motorsPercent.slide);
+            
+            // Mettre à jour les affichages de position
+            updatePositionDisplay('panPos', motors.pan, motorsPercent.pan);
+            updatePositionDisplay('tiltPos', motors.tilt, motorsPercent.tilt);
+            updatePositionDisplay('zoomPos', motors.zoom, motorsPercent.zoom);
+            updatePositionDisplay('slidePos', motors.slide, motorsPercent.slide);
+            
+            // Mettre à jour l'état des modes
+            updateModeStatus(data.modes);
+        }
+        
+        function updateDirectAxisSlider(axis, position, percent) {
+            const slider = document.getElementById(`${axis}Slider`);
+            if (slider) {
+                // Convertir la position en valeur de slider (0-100)
+                slider.value = Math.max(0, Math.min(100, percent));
+            }
+        }
+        
+        function updatePositionDisplay(elementId, position, percent) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = `${position} (${percent.toFixed(1)}%)`;
+            }
+        }
+        
+        function updateModeStatus(modes) {
+            // Mettre à jour l'affichage des modes actifs
+            const statusElements = {
+                'interpAuto': document.getElementById('interpAutoStatus'),
+                'syncMove': document.getElementById('syncMoveStatus'),
+                'slideAB': document.getElementById('slideABStatus'),
+                'follow': document.getElementById('followStatus')
+            };
+            
+            for (const [mode, element] of Object.entries(statusElements)) {
+                if (element) {
+                    element.textContent = modes[mode] ? '🟢 Actif' : '⚪ Inactif';
+                    element.style.color = modes[mode] ? '#4CAF50' : '#666';
+                }
+            }
+        }
+        
+        // Démarrer le polling des positions (toutes les 500ms)
+        setInterval(pollMotorPositions, 500);
+        
+        // Polling initial
+        pollMotorPositions();
     </script>
 </body>
 </html>

@@ -7,6 +7,8 @@ import os
 import time
 import threading
 import math
+import requests
+import json
 from flask import Flask, render_template, request, jsonify
 from pythonosc import udp_client
 from config import ESP32_IP, ESP32_OSC_PORT, FLASK_PORT
@@ -16,6 +18,10 @@ app = Flask(__name__)
 
 # Configuration OSC
 osc_client = udp_client.SimpleUDPClient(ESP32_IP, ESP32_OSC_PORT)
+
+# Configuration HTTP pour l'ESP32
+ESP32_HTTP_PORT = 80
+ESP32_HTTP_URL = f"http://{ESP32_IP}:{ESP32_HTTP_PORT}"
 
 # --- Joystick (pygame) config ---
 JOYSTICK_USE_PYGAME = True
@@ -58,6 +64,20 @@ def send_osc_message(address, *args):
     except Exception as e:
         print(f"[OSC] ❌ Erreur envoi {address}: {e}")
         return False
+
+def get_esp32_data(endpoint="/api/status"):
+    """Récupère les données de l'ESP32 via HTTP"""
+    try:
+        url = f"{ESP32_HTTP_URL}{endpoint}"
+        response = requests.get(url, timeout=2)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"❌ Erreur HTTP ESP32 {endpoint}: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"❌ Erreur connexion ESP32 {endpoint}: {e}")
+        return None
 
 def _start_joystick_thread():
     """Démarre le thread joystick"""
@@ -754,14 +774,19 @@ def api_bank_set():
     success = send_osc_message('/bank/set', bank_index)
     if success:
         # Attendre un court délai pour que l'ESP32 charge la banque
-        import time
-        time.sleep(0.1)
+        time.sleep(0.2)
         
-        # Récupérer les points d'interpolation
-        interp_success = send_osc_message('/bank/get_interp')
-        if interp_success:
-            # Pour l'instant, on retourne un JSON par défaut
-            # Dans une implémentation complète, on recevrait la réponse de l'ESP32
+        # Récupérer les points d'interpolation depuis l'ESP32
+        esp32_data = get_esp32_data('/api/interpolation')
+        if esp32_data:
+            return jsonify({
+                'success': True, 
+                'bank': bank_index,
+                'interpCount': esp32_data.get('interpCount', 0),
+                'interp': esp32_data.get('interp', [])
+            })
+        else:
+            # Fallback si pas de connexion ESP32
             return jsonify({
                 'success': True, 
                 'bank': bank_index,
@@ -771,8 +796,6 @@ def api_bank_set():
                     {'presetIndex': 1, 'fraction': 100}
                 ]
             })
-        else:
-            return jsonify({'success': True, 'bank': bank_index, 'interp': None})
     else:
         return jsonify({'success': False, 'error': 'Failed to change bank'})
 
@@ -782,24 +805,38 @@ def api_bank_save():
     success = send_osc_message('/bank/save')
     return jsonify({'success': success, 'action': 'save'})
 
-@app.route('/api/bank/interp', methods=['GET'])
-def api_bank_interp():
-    """Récupère les points d'interpolation de la banque active"""
-    # Demander les points d'interpolation à l'ESP32
-    success = send_osc_message('/bank/get_interp')
-    if success:
-        # Pour l'instant, on retourne un JSON par défaut
-        # Dans une implémentation complète, on recevrait la réponse de l'ESP32
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    """Récupère le statut complet de l'ESP32 (positions moteurs + interpolation)"""
+    esp32_data = get_esp32_data('/api/status')
+    if esp32_data:
         return jsonify({
             'success': True,
-            'interpCount': 2,
-            'interp': [
-                {'presetIndex': 0, 'fraction': 0},
-                {'presetIndex': 1, 'fraction': 100}
-            ]
+            'data': esp32_data
         })
     else:
-        return jsonify({'success': False, 'error': 'Failed to get interpolation points'})
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get ESP32 status'
+        })
+
+@app.route('/api/motors', methods=['GET'])
+def api_motors():
+    """Récupère les positions des moteurs"""
+    esp32_data = get_esp32_data('/api/status')
+    if esp32_data and 'motors' in esp32_data:
+        return jsonify({
+            'success': True,
+            'motors': esp32_data['motors'],
+            'motors_percent': esp32_data.get('motors_percent', {}),
+            'modes': esp32_data.get('modes', {}),
+            'bank': esp32_data.get('bank', {})
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get motor positions'
+        })
 
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")

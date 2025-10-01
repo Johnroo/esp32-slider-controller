@@ -1478,10 +1478,62 @@ void setupWebServer() {
     request->send(200, "text/plain", "ESP32 Slider Controller - OSC Server Running");
   });
   
-  webServer.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
-    String status = "Pan: " + String(panPos) + " Tilt: " + String(tiltPos) + 
-                   " Zoom: " + String(zoomPos) + " Slide: " + String(slidePos);
-    request->send(200, "text/plain", status);
+  webServer.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *request){
+    // Créer un JSON avec les positions des moteurs et les points d'interpolation
+    DynamicJsonDocument doc(2048);
+    
+    // Positions actuelles des 4 moteurs
+    doc["motors"]["pan"] = steppers[0]->targetPos();
+    doc["motors"]["tilt"] = steppers[1]->targetPos();
+    doc["motors"]["zoom"] = steppers[2]->targetPos();
+    doc["motors"]["slide"] = steppers[3]->targetPos();
+    
+    // Positions en pourcentage (0-100)
+    doc["motors_percent"]["pan"] = (float)(steppers[0]->targetPos() - cfg[0].min_limit) / (cfg[0].max_limit - cfg[0].min_limit) * 100.0f;
+    doc["motors_percent"]["tilt"] = (float)(steppers[1]->targetPos() - cfg[1].min_limit) / (cfg[1].max_limit - cfg[1].min_limit) * 100.0f;
+    doc["motors_percent"]["zoom"] = (float)(steppers[2]->targetPos() - cfg[2].min_limit) / (cfg[2].max_limit - cfg[2].min_limit) * 100.0f;
+    doc["motors_percent"]["slide"] = (float)(steppers[3]->targetPos() - cfg[3].min_limit) / (cfg[3].max_limit - cfg[3].min_limit) * 100.0f;
+    
+    // Points d'interpolation actuels
+    doc["interpolation"]["count"] = interpCount;
+    JsonArray interpArray = doc["interpolation"].createNestedArray("points");
+    for (int i = 0; i < interpCount; i++) {
+      JsonObject point = interpArray.createNestedObject();
+      point["presetIndex"] = interpPoints[i].presetIndex;
+      point["fraction"] = interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
+    }
+    
+    // État des modes actifs
+    doc["modes"]["interpAuto"] = interpAuto.active;
+    doc["modes"]["syncMove"] = sync_move.active;
+    doc["modes"]["slideAB"] = slideAB.enabled;
+    doc["modes"]["follow"] = follow.valid;
+    
+    // Banque active
+    doc["bank"]["active"] = activeBank;
+    
+    // Sérialiser en JSON
+    String jsonString;
+    serializeJson(doc, jsonString);
+    
+    request->send(200, "application/json", jsonString);
+  });
+  
+  webServer.on("/api/interpolation", HTTP_GET, [](AsyncWebServerRequest *request){
+    // Route spécifique pour les points d'interpolation
+    DynamicJsonDocument doc(1024);
+    
+    doc["interpCount"] = interpCount;
+    JsonArray interpArray = doc.createNestedArray("interp");
+    for (int i = 0; i < interpCount; i++) {
+      JsonObject point = interpArray.createNestedObject();
+      point["presetIndex"] = interpPoints[i].presetIndex;
+      point["fraction"] = interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
+    }
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    request->send(200, "application/json", jsonString);
   });
   
   webServer.begin();
