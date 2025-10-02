@@ -69,16 +69,11 @@ def get_esp32_data(endpoint="/api/status"):
     """Récupère les données de l'ESP32 via HTTP"""
     try:
         url = f"{ESP32_HTTP_URL}{endpoint}"
-        print(f"🔗 Tentative de connexion ESP32: {url}")
         response = requests.get(url, timeout=2)
-        print(f"📡 Réponse ESP32 {endpoint}: {response.status_code}")
         if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Données ESP32 reçues: {data}")
-            return data
+            return response.json()
         else:
             print(f"❌ Erreur HTTP ESP32 {endpoint}: {response.status_code}")
-            print(f"📄 Contenu réponse: {response.text[:200]}")
             return None
     except Exception as e:
         print(f"❌ Erreur connexion ESP32 {endpoint}: {e}")
@@ -847,7 +842,6 @@ def api_motors():
 @app.route('/api/esp32/test', methods=['GET'])
 def api_esp32_test():
     """Test de connectivité vers l'ESP32"""
-    print(f"🧪 Test de connectivité ESP32 vers {ESP32_HTTP_URL}")
     esp32_data = get_esp32_data('/api/test')
     if esp32_data:
         return jsonify({
@@ -864,7 +858,6 @@ def api_esp32_test():
 def api_esp32_ping():
     """Test de ping simple vers l'ESP32"""
     try:
-        print(f"🏓 Ping ESP32 vers {ESP32_HTTP_URL}")
         response = requests.get(f"{ESP32_HTTP_URL}/", timeout=2)
         return jsonify({
             'success': True,
