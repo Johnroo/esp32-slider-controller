@@ -12,6 +12,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include "MotorControl.h"
+#include "Homing.h"
 
 //==================== Configuration ====================
 #define NUM_MOTORS 4
@@ -99,8 +100,7 @@ struct RecallPolicy {
 
 //==================== Homing Slide (StallGuard) ====================
 // Permettre un homing sans capteur sur l'axe slide via StallGuard (TMC2209)
-bool    doAutoHomeSlide     = true;   // lancer automatiquement au démarrage si true
-uint8_t slide_sg_threshold  = 100;    // SGTHRS par défaut (sensibilité moyenne)
+// Variables maintenant gérées par le module Homing
 
 // Mode AB infini pour le slide (déprécié - remplacé par interpolation multi-presets)
 struct SlideAB {
@@ -166,158 +166,9 @@ float TILT_JOG_SPEED = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
 
 // Homing du slide via StallGuard4 (TMC2209)
 // StallGuard4 fonctionne en StealthChop (spreadCycle = false)
+// Constantes maintenant définies dans Homing.h
 
-#define SLIDE_INDEX     3
-#define HOMING_SPEED    9000     // steps/s (2000-4000 range pour SG4)
-#define HOMING_ACCEL    90000    // accel élevée pour atteindre vitesse rapidement
-// SG_THRESHOLD remplacé par slide_sg_threshold (variable globale)
-#define SG_DETECT       100      // seuil SG_RESULT pour détecter stall (commencer à ~100)
-#define HOMING_TIMEOUT  20000    // ms
-#define BACKOFF_STEPS   300      // pas de recul après détection
-
-void home_slide() {
-  int i = SLIDE_INDEX;
-  if (!steppers[i]) return;
-
-  Serial.println("🏠 HOMING SLIDE START (StallGuard4)");
-
-  // Désactiver tous les modes automatiques
-  slideAB.enabled = false;
-  sync_move.active = false;
-  follow.enabled = false;
-
-  // Sauvegarder la configuration actuelle
-  long original_current = cfg[i].current_ma;
-  long original_accel = cfg[i].max_accel;
-  long original_speed = cfg[i].max_speed;
-
-  // Augmenter temporairement le courant (+20%)
-  long homing_current = original_current + (original_current * 20 / 100);
-  drivers[i]->rms_current(homing_current);
-  Serial.printf("⚡ Courant homing: %ld mA (+20%%)\n", homing_current);
-
-  // Configuration pour StallGuard4 (StealthChop requis)
-  drivers[i]->en_spreadCycle(false);  // StealthChop pour StallGuard4
-  drivers[i]->TPWMTHRS(0xFFFFF);      // Garder StealthChop à haute vitesse
-  drivers[i]->SGTHRS(slide_sg_threshold);   // Sensibilité StallGuard
-  drivers[i]->TCOOLTHRS(0xFFFFF);     // Activer SG même à basse vitesse
-
-  // Configuration vitesse/accel pour homing
-  steppers[i]->setAcceleration(HOMING_ACCEL);
-  steppers[i]->setSpeedInHz(HOMING_SPEED);
-
-  Serial.printf("🎯 Config: Speed=%d, Accel=%d, SGTHRS=%d, SG_DETECT=%d\n", 
-                 HOMING_SPEED, HOMING_ACCEL, slide_sg_threshold, SG_DETECT);
-
-  // ------------------ PHASE INF (vers butée inférieure) ------------------
-  Serial.println("▶️ Vers butée INF...");
-  steppers[i]->runBackward();
-  uint32_t t0 = millis();
-  uint32_t last_sg_log = 0;
-  bool stall_detected = false;
-  
-  while (millis() - t0 < HOMING_TIMEOUT && !stall_detected) {
-    uint16_t sg = drivers[i]->SG_RESULT();
-    uint32_t now = millis();
-    
-    // Log SG_RESULT toutes les 300ms pour debug
-    if (now - last_sg_log > 300) {
-      Serial.printf("SG_RESULT: %u (seuil: %u)\n", sg, SG_DETECT);
-      last_sg_log = now;
-    }
-    
-    // Détecter stall après 500ms de mouvement
-    if (millis() - t0 > 500 && sg < SG_DETECT) {
-      Serial.printf("💥 INF Stall détecté (SG=%u < %u)\n", sg, SG_DETECT);
-      steppers[i]->forceStop();
-      stall_detected = true;
-    }
-    delay(2);
-  }
-  
-  if (!stall_detected) {
-    Serial.println("⚠️ Timeout INF - pas de stall détecté");
-  }
-  
-  long minPos = steppers[i]->getCurrentPosition();
-  Serial.printf("📍 Position INF: %ld\n", minPos);
-
-  // Recul pour se dégager de la butée
-  Serial.printf("↩️ Recul de %d pas...\n", BACKOFF_STEPS);
-  steppers[i]->move(BACKOFF_STEPS);
-  while (steppers[i]->isRunning()) delay(2);
-
-  // ------------------ PHASE SUP (vers butée supérieure) ------------------
-  Serial.println("▶️ Vers butée SUP...");
-  steppers[i]->runForward();
-  t0 = millis();
-  last_sg_log = 0;
-  stall_detected = false;
-  
-  while (millis() - t0 < HOMING_TIMEOUT && !stall_detected) {
-    uint16_t sg = drivers[i]->SG_RESULT();
-    uint32_t now = millis();
-    
-    // Log SG_RESULT toutes les 300ms pour debug
-    if (now - last_sg_log > 300) {
-      Serial.printf("SG_RESULT: %u (seuil: %u)\n", sg, SG_DETECT);
-      last_sg_log = now;
-    }
-    
-    // Détecter stall après 500ms de mouvement
-    if (millis() - t0 > 500 && sg < SG_DETECT) {
-      Serial.printf("💥 SUP Stall détecté (SG=%u < %u)\n", sg, SG_DETECT);
-      steppers[i]->forceStop();
-      stall_detected = true;
-    }
-    delay(2);
-  }
-  
-  if (!stall_detected) {
-    Serial.println("⚠️ Timeout SUP - pas de stall détecté");
-  }
-  
-  long maxPos = steppers[i]->getCurrentPosition();
-  Serial.printf("📍 Position SUP: %ld\n", maxPos);
-
-  // ------------------ CALCUL CENTRE ET LIMITES ------------------
-  long center = (minPos + maxPos) / 2;
-  long range = maxPos - minPos;
-  
-  Serial.printf("📏 Course détectée: %ld pas (%.1f mm)\n", range, range * 0.1); // Assumant 0.1mm/pas
-  
-  // Aller au centre
-  Serial.printf("🎯 Aller au centre: %ld\n", center);
-  steppers[i]->moveTo(center);
-  while (steppers[i]->isRunning()) delay(2);
-  
-  // Définir position 0 au centre
-  steppers[i]->setCurrentPosition(0);
-  
-  // Calculer limites relatives au centre
-  cfg[i].min_limit = minPos - center;
-  cfg[i].max_limit = maxPos - center;
-  
-  Serial.printf("✅ Homing terminé!\n");
-  Serial.printf("   Centre: %ld (position 0)\n", center);
-  Serial.printf("   Limites: [%ld, %ld]\n", cfg[i].min_limit, cfg[i].max_limit);
-  Serial.printf("   Course: %ld pas\n", cfg[i].max_limit - cfg[i].min_limit);
-
-  // ------------------ RESTAURATION CONFIG NORMALE ------------------
-  Serial.println("🔄 Restauration configuration normale...");
-  
-  // Restaurer courant normal
-  drivers[i]->rms_current(original_current);
-  
-  // Restaurer vitesse/accel normales
-  steppers[i]->setAcceleration(original_accel);
-  steppers[i]->setSpeedInHz(original_speed);
-  
-  // Le driver reste en StealthChop (spreadCycle = false) comme partout ailleurs
-  // Pas besoin de restaurer le mode car on utilise StealthChop partout
-  
-  Serial.println("✅ Homing terminé avec succès!");
-}
+// La fonction home_slide() est maintenant dans Homing.cpp
 
 
 //==================== NEW: Helpers ====================
@@ -1088,16 +939,13 @@ void processOSC() {
       // Homing slide & StallGuard threshold
       msg.dispatch("/slide/home", [](OSCMessage &m){
         Serial.println("\xF0\x9F\x8F\xA0 Commande OSC: homing du slide");
-        home_slide();
+        homeSlide();
       });
       msg.dispatch("/slide/sgthrs", [](OSCMessage &m){
         if (m.size() > 0) {
           int thr = m.getInt(0);
           if (thr < 0) thr = 0; if (thr > 255) thr = 255;
-          slide_sg_threshold = (uint8_t)thr;
-          drivers[3]->SGTHRS(slide_sg_threshold);
-          cfg[3].sgt = slide_sg_threshold;
-          Serial.printf("\xE2\x9A\x99\xEF\xB8\x8F Nouvelle SGTHRS (slide) = %d\n", slide_sg_threshold);
+          setSlideSGThreshold((uint8_t)thr);
         }
       });
 
@@ -1547,6 +1395,9 @@ void setup() {
   // Initialiser les moteurs
   initMotors();
   
+  // Initialiser le module de homing
+  initHoming();
+  
   // WiFi Manager
   WiFiManager wm;
   wm.autoConnect("ESP32-Slider");
@@ -1565,9 +1416,9 @@ void setup() {
   Serial.println("🎯 System ready!");
 
   // Homing automatique optionnel
-  if (doAutoHomeSlide) {
+  if (isAutoHomeEnabled()) {
     Serial.println("\xF0\x9F\x8F\xA0 Homing automatique du slide au d\xC3\xA9marrage...");
-    home_slide();
+    homeSlide();
   }
 }
 
