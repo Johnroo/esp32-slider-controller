@@ -1519,16 +1519,16 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         // Test function pour vérifier la connectivité (globale)
         window.testConnection = async function(){
             try {
-                console.log('🧪 Testing /api/test...');
-                const r = await fetch('/api/test');
+                console.log('🧪 Testing ESP32 connection via Flask...');
+                const r = await fetch('/api/esp32/test');
                 if (!r.ok) {
                     throw new Error(`HTTP ${r.status}: ${r.statusText}`);
                 }
                 const data = await r.json();
-                console.log('✅ Test endpoint works:', data);
+                console.log('✅ ESP32 connection works:', data);
                 return true;
             } catch(e){ 
-                console.error('❌ Test endpoint failed:', e); 
+                console.error('❌ ESP32 connection failed:', e); 
                 return false;
             }
         }
@@ -1536,8 +1536,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         // Polling des positions des moteurs en temps réel (globale)
         window.refreshAxes = async function(){
             try {
-                console.log('🔄 Fetching /api/axes/status...');
-                const r = await fetch('/api/axes/status');
+                console.log('🔄 Fetching axes status via Flask...');
+                const r = await fetch('/api/esp32/axes/status');
                 if (!r.ok) {
                     throw new Error(`HTTP ${r.status}: ${r.statusText}`);
                 }

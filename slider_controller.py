@@ -838,6 +838,33 @@ def api_motors():
             'error': 'Failed to get motor positions'
         })
 
+#==================== NEW: ESP32 Bridge Routes ====================
+@app.route('/api/esp32/test', methods=['GET'])
+def api_esp32_test():
+    """Test de connectivité vers l'ESP32"""
+    esp32_data = get_esp32_data('/api/test')
+    if esp32_data:
+        return jsonify({
+            'success': True,
+            'data': esp32_data
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Failed to connect to ESP32'
+        })
+
+@app.route('/api/esp32/axes/status', methods=['GET'])
+def api_esp32_axes_status():
+    """Récupère les positions normalisées des axes depuis l'ESP32"""
+    esp32_data = get_esp32_data('/api/axes/status')
+    if esp32_data:
+        return jsonify(esp32_data)
+    else:
+        return jsonify({
+            'error': 'Failed to get axes status from ESP32'
+        }), 500
+
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")
     print(f"OSC Target: {ESP32_IP}:{ESP32_OSC_PORT}")
