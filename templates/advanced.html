@@ -546,6 +546,7 @@
                 
                 <!-- Debug Test Button -->
                 <div class="control-group" style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffeaa7;">
+                    <button onclick="testPing()" class="btn btn-warning" style="margin-right: 10px;">🏓 Ping ESP32</button>
                     <button onclick="testConnection()" class="btn btn-warning" style="margin-right: 10px;">🧪 Test API Connection</button>
                     <button onclick="refreshAxes()" class="btn btn-primary">🔄 Test Axes Refresh</button>
                 </div>
@@ -1515,6 +1516,23 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         }
 
         pollJoystick();
+        
+        // Test function pour ping ESP32 (globale)
+        window.testPing = async function(){
+            try {
+                console.log('🏓 Pinging ESP32 via Flask...');
+                const r = await fetch('/api/esp32/ping');
+                if (!r.ok) {
+                    throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+                }
+                const data = await r.json();
+                console.log('✅ ESP32 ping result:', data);
+                return true;
+            } catch(e){ 
+                console.error('❌ ESP32 ping failed:', e); 
+                return false;
+            }
+        }
         
         // Test function pour vérifier la connectivité (globale)
         window.testConnection = async function(){
