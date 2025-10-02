@@ -463,6 +463,52 @@
                         <span id="bankStatus" style="margin-left: 10px; color: #4CAF50;">Ready</span>
                     </div>
                 </div>
+                
+                <!-- Bank Export/Import -->
+                <div class="control-group" style="margin-bottom: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px; border: 1px solid #b3d9ff;">
+                    <h4 style="margin-bottom: 10px; color: #0066cc;">📁 Bank Export/Import</h4>
+                    
+                    <div class="control-group">
+                        <label>Export Bank:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <select id="exportBankSelector">
+                                <option value="0">Bank 0</option>
+                                <option value="1">Bank 1</option>
+                                <option value="2">Bank 2</option>
+                                <option value="3">Bank 3</option>
+                                <option value="4">Bank 4</option>
+                                <option value="5">Bank 5</option>
+                                <option value="6">Bank 6</option>
+                                <option value="7">Bank 7</option>
+                                <option value="8">Bank 8</option>
+                                <option value="9">Bank 9</option>
+                            </select>
+                            <button onclick="exportBank()" class="btn" style="background: #17a2b8;">📤 Export JSON</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>Import Bank:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="file" id="importFileInput" accept=".json" style="flex: 1; padding: 8px; border: 2px solid #dee2e6; border-radius: 8px;">
+                            <select id="importBankSelector">
+                                <option value="0">Bank 0</option>
+                                <option value="1">Bank 1</option>
+                                <option value="2">Bank 2</option>
+                                <option value="3">Bank 3</option>
+                                <option value="4">Bank 4</option>
+                                <option value="5">Bank 5</option>
+                                <option value="6">Bank 6</option>
+                                <option value="7">Bank 7</option>
+                                <option value="8">Bank 8</option>
+                                <option value="9">Bank 9</option>
+                            </select>
+                            <button onclick="importBank()" class="btn" style="background: #28a745;">📥 Import JSON</button>
+                        </div>
+                    </div>
+                    
+                    <div id="exportImportStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; display: none;"></div>
+                </div>
                 <div class="preset-grid">
                     <div class="preset-btn" data-preset="0" onclick="selectPreset(0)">
                         Preset 0
@@ -1414,6 +1460,102 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                     document.getElementById('bankStatus').textContent = 'Error saving bank';
                     document.getElementById('bankStatus').style.color = '#f44336';
                 }
+            });
+        }
+
+        // Bank Export/Import functions
+        function exportBank() {
+            const bankId = parseInt(document.getElementById('exportBankSelector').value);
+            const statusDiv = document.getElementById('exportImportStatus');
+            
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Exporting bank...';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.style.border = '1px solid #ffeaa7';
+            
+            fetch(`/api/bank/export/${bankId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusDiv.textContent = `✅ Bank ${bankId} exported successfully!`;
+                        statusDiv.style.background = '#d4edda';
+                        statusDiv.style.color = '#155724';
+                        statusDiv.style.border = '1px solid #c3e6cb';
+                        
+                        // Télécharger automatiquement le fichier
+                        const downloadUrl = data.download_url;
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = data.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } else {
+                        statusDiv.textContent = `❌ Export failed: ${data.error}`;
+                        statusDiv.style.background = '#f8d7da';
+                        statusDiv.style.color = '#721c24';
+                        statusDiv.style.border = '1px solid #f5c6cb';
+                    }
+                })
+                .catch(error => {
+                    statusDiv.textContent = `❌ Export error: ${error.message}`;
+                    statusDiv.style.background = '#f8d7da';
+                    statusDiv.style.color = '#721c24';
+                    statusDiv.style.border = '1px solid #f5c6cb';
+                });
+        }
+
+        function importBank() {
+            const fileInput = document.getElementById('importFileInput');
+            const targetBank = parseInt(document.getElementById('importBankSelector').value);
+            const statusDiv = document.getElementById('exportImportStatus');
+            
+            if (!fileInput.files[0]) {
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = '❌ Please select a JSON file';
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.style.border = '1px solid #f5c6cb';
+                return;
+            }
+            
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Importing bank...';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.style.border = '1px solid #ffeaa7';
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('target_bank', targetBank);
+            
+            fetch('/api/bank/import', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.textContent = `✅ Bank imported successfully to Bank ${targetBank}!`;
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                    statusDiv.style.border = '1px solid #c3e6cb';
+                    
+                    // Réinitialiser le file input
+                    fileInput.value = '';
+                } else {
+                    statusDiv.textContent = `❌ Import failed: ${data.error}`;
+                    statusDiv.style.background = '#f8d7da';
+                    statusDiv.style.color = '#721c24';
+                    statusDiv.style.border = '1px solid #f5c6cb';
+                }
+            })
+            .catch(error => {
+                statusDiv.textContent = `❌ Import error: ${error.message}`;
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.style.border = '1px solid #f5c6cb';
             });
         }
 

@@ -893,6 +893,139 @@ def api_esp32_axes_status():
             'error': 'Failed to get axes status from ESP32'
         }), 500
 
+@app.route('/api/bank/export/<int:bank_id>', methods=['GET'])
+def api_bank_export(bank_id):
+    """Exporte une banque vers un fichier JSON"""
+    try:
+        # Récupérer les données de la banque depuis l'ESP32
+        esp32_data = get_esp32_data(f'/api/bank/{bank_id}')
+        if not esp32_data:
+            return jsonify({'error': 'Failed to get bank data from ESP32'}), 500
+        
+        # Créer le nom de fichier avec timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"bank_{bank_id}_{timestamp}.json"
+        
+        # Ajouter des métadonnées
+        export_data = {
+            'metadata': {
+                'exported_at': datetime.now().isoformat(),
+                'bank_id': bank_id,
+                'version': '1.0',
+                'description': f'Bank {bank_id} export'
+            },
+            'bank_data': esp32_data
+        }
+        
+        # Créer le répertoire exports s'il n'existe pas
+        import os
+        exports_dir = 'exports'
+        if not os.path.exists(exports_dir):
+            os.makedirs(exports_dir)
+        
+        # Sauvegarder le fichier
+        filepath = os.path.join(exports_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+        
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'filepath': filepath,
+            'download_url': f'/api/bank/download/{filename}'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Export failed: {str(e)}'}), 500
+
+@app.route('/api/bank/download/<filename>', methods=['GET'])
+def api_bank_download(filename):
+    """Télécharge un fichier JSON exporté"""
+    try:
+        from flask import send_file
+        filepath = os.path.join('exports', filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, as_attachment=True, download_name=filename)
+        else:
+            return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Download failed: {str(e)}'}), 500
+
+@app.route('/api/bank/import', methods=['POST'])
+def api_bank_import():
+    """Importe une banque depuis un fichier JSON"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.endswith('.json'):
+            return jsonify({'error': 'File must be a JSON file'}), 400
+        
+        # Lire le contenu du fichier
+        file_content = file.read().decode('utf-8')
+        import_data = json.loads(file_content)
+        
+        # Vérifier la structure
+        if 'bank_data' not in import_data:
+            return jsonify({'error': 'Invalid JSON structure: missing bank_data'}), 400
+        
+        bank_data = import_data['bank_data']
+        
+        # Récupérer l'ID de la banque de destination
+        target_bank = request.form.get('target_bank', type=int)
+        if target_bank is None:
+            return jsonify({'error': 'target_bank parameter required'}), 400
+        
+        # Envoyer les données à l'ESP32
+        success = send_bank_to_esp32(target_bank, bank_data)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Bank imported successfully to bank {target_bank}',
+                'target_bank': target_bank
+            })
+        else:
+            return jsonify({'error': 'Failed to send data to ESP32'}), 500
+            
+    except json.JSONDecodeError:
+        return jsonify({'error': 'Invalid JSON file'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Import failed: {str(e)}'}), 500
+
+def send_bank_to_esp32(bank_id, bank_data):
+    """Envoie les données de banque à l'ESP32 via OSC"""
+    try:
+        # Envoyer chaque preset
+        for i, preset in enumerate(bank_data.get('presets', [])):
+            if preset:  # Si le preset existe
+                send_osc_message(f'/preset/set', [i, preset.get('p', 0), preset.get('t', 0), 
+                                                preset.get('z', 0), preset.get('s', 0)])
+        
+        # Envoyer les points d'interpolation
+        interp_points = bank_data.get('interpPoints', [])
+        interp_count = bank_data.get('interpCount', 2)
+        
+        # Construire le message d'interpolation
+        interp_data = [interp_count]
+        for point in interp_points:
+            interp_data.extend([point.get('presetIndex', 0), point.get('fraction', 0.0)])
+        
+        send_osc_message('/interp/setpoints', interp_data)
+        
+        # Sauvegarder la banque sur l'ESP32
+        send_osc_message('/bank/save', [bank_id])
+        
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to send bank data to ESP32: {e}")
+        return False
+
 if __name__ == "__main__":
     print("ESP32 Slider Controller starting...")
     print(f"OSC Target: {ESP32_IP}:{ESP32_OSC_PORT}")

@@ -1567,6 +1567,46 @@ void setupWebServer() {
     req->send(200, "application/json", "{\"status\":\"ok\",\"message\":\"test endpoint works\"}");
   });
   
+  //==================== Bank Export Endpoint ====================
+  webServer.on("/api/bank/{id}", HTTP_GET, [](AsyncWebServerRequest *req){
+    int bankId = req->pathArg(0).toInt();
+    Serial.printf("📤 /api/bank/%d requested\n", bankId);
+    
+    if (bankId < 0 || bankId >= 10) {
+      req->send(400, "application/json", "{\"error\":\"Invalid bank ID\"}");
+      return;
+    }
+    
+    DynamicJsonDocument doc(4096);
+    
+    // Récupérer les presets de la banque
+    JsonArray presetsArray = doc.createNestedArray("presets");
+    for (int i = 0; i < 8; i++) {
+      JsonObject preset = presetsArray.createNestedObject();
+      Preset p = banks[bankId].presets[i];
+      preset["p"] = p.p;
+      preset["t"] = p.t;
+      preset["z"] = p.z;
+      preset["s"] = p.s;
+      preset["pan_anchor"] = p.pan_anchor;
+      preset["tilt_anchor"] = p.tilt_anchor;
+      preset["mode"] = p.mode;
+    }
+    
+    // Récupérer les points d'interpolation de la banque
+    doc["interpCount"] = banks[bankId].interpCount;
+    JsonArray interpArray = doc.createNestedArray("interpPoints");
+    for (int i = 0; i < banks[bankId].interpCount; i++) {
+      JsonObject point = interpArray.createNestedObject();
+      point["presetIndex"] = banks[bankId].interpPoints[i].presetIndex;
+      point["fraction"] = banks[bankId].interpPoints[i].fraction;
+    }
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    req->send(200, "application/json", jsonString);
+  });
+  
   webServer.begin();
   Serial.println("🌐 Web server started");
 }
