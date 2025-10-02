@@ -902,4 +902,9 @@ if __name__ == "__main__":
     _start_joystick_thread()
     
     # Démarrer Flask (sans auto-reload pour éviter les redémarrages du thread joystick)
+    # Supprimer les logs HTTP pour avoir une console propre
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
     app.run(debug=False, use_reloader=False, host='0.0.0.0', port=FLASK_PORT)
