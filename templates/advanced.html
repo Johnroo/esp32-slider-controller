@@ -1492,8 +1492,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 // En cas d'erreur, on laisse les faders visibles
                 document.body.dataset.joy = 'disconnected';
             } finally {
-                // ~30 FPS UI
-                setTimeout(pollJoystick, 33);
+                // ~10 FPS UI (réduit de 30 à 10 FPS)
+                setTimeout(pollJoystick, 100);
             }
         }
         //==================== Homing handlers ====================
@@ -1519,7 +1519,7 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             });
         }
 
-        pollJoystick();
+        // pollJoystick(); // Désactivé pour réduire les logs
         
         // Test function pour ping ESP32 (globale)
         window.testPing = async function(){
