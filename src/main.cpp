@@ -1,7 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <FastAccelStepper.h>
-#include <TMCStepper.h>
 #include <WiFiManager.h>
 #include <ArduinoOTA.h>
 #include <ESPAsyncWebServer.h>
@@ -13,6 +11,7 @@
 #include <math.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include "MotorControl.h"
 
 //==================== Configuration ====================
 #define NUM_MOTORS 4
@@ -151,72 +150,19 @@ float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
 float TILT_JOG_SPEED = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
 
 // Pins STEP/DIR/EN
-const int STEP_PINS[NUM_MOTORS]    = {18, 21, 23, 26};
-const int DIR_PINS[NUM_MOTORS]     = {19, 22, 25, 27};
-const int ENABLE_PINS[NUM_MOTORS]  = {13, 14, 32, 33};
+// Les pins sont maintenant définis dans MotorControl.cpp
 
-// UART TMC2209
-#define UART_TX 17
-#define UART_RX 16
-#define ADDR_PAN   0b00
-#define ADDR_TILT  0b01
-#define ADDR_ZOOM  0b10
-#define ADDR_SLIDE 0b11
-#define R_SENSE 0.11f
+// UART TMC2209 - les constantes sont maintenant dans MotorControl.h
 
-// Configuration des axes
-struct AxisConfig {
-  long min_limit;
-  long max_limit;
-  int  current_ma;
-  int  microsteps;
-  int  max_speed;
-  int  max_accel;
-  int  sgt;
-  bool coolstep;
-  bool spreadcycle;
-  bool stallguard;
-};
+// Configuration des axes - maintenant dans MotorControl.h
 
-AxisConfig cfg[NUM_MOTORS] = {
-  // Pan
-  {-27106, 27106, 1200, 16, 20000, 12000, 0, false, false, true},
-  // Tilt  
-  {-2439, 2439, 1200, 16, 20000, 12000, 0, false, false, true},
-  // Zoom
-  {-20000, 20000, 400, 16, 20000, 8000, 0, false, false, true},
-  // Slide
-  {-20000, 20000, 1800, 8, 10000, 12000, 0, false, false, true}
-};
+// La configuration cfg est maintenant dans MotorControl.cpp
 
 //==================== Objets moteurs ====================
-FastAccelStepperEngine engine;
-FastAccelStepper* steppers[NUM_MOTORS];
-
-TMC2209Stepper driver_pan  (&Serial2, R_SENSE, ADDR_PAN);
-TMC2209Stepper driver_tilt (&Serial2, R_SENSE, ADDR_TILT);
-TMC2209Stepper driver_zoom (&Serial2, R_SENSE, ADDR_ZOOM);
-TMC2209Stepper driver_slide(&Serial2, R_SENSE, ADDR_SLIDE);
-TMC2209Stepper* drivers[NUM_MOTORS] = {&driver_pan,&driver_tilt,&driver_zoom,&driver_slide};
+// Les objets moteurs sont maintenant définis dans MotorControl.cpp
 
 //==================== Setup Drivers TMC ====================
-void setupDriversTMC() {
-  Serial2.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
-  delay(50);
-
-  for (int i=0; i<NUM_MOTORS; i++) {
-    auto d = drivers[i];
-    d->begin();
-    d->toff(5);                                // enable driver
-    d->rms_current(cfg[i].current_ma);         // courant RMS
-    d->microsteps(cfg[i].microsteps);          // µsteps
-    d->pwm_autoscale(true);                    // pour StealthChop
-    d->en_spreadCycle(cfg[i].spreadcycle);
-    d->SGTHRS(cfg[i].sgt);                     // StallGuard threshold
-    // d->coolstep_en(cfg[i].coolstep);  // Pas disponible sur TMC2209
-    // d->stallguard(cfg[i].stallguard);  // Pas disponible sur TMC2209
-  }
-}
+// La fonction setupDriversTMC() est maintenant dans MotorControl.cpp
 
 // Homing du slide via StallGuard4 (TMC2209)
 // StallGuard4 fonctionne en StealthChop (spreadCycle = false)
@@ -876,10 +822,7 @@ void coordinator_tick(){
 }
 
 //==================== Variables globales ====================
-long panPos = 0;
-long tiltPos = 0;
-long zoomPos = 0;
-long slidePos = 0;
+// Les variables de position sont maintenant dans MotorControl.cpp
 
 //==================== OSC ====================
 WiFiUDP udp;
@@ -1601,28 +1544,8 @@ void setup() {
   follow.enabled = false;
   slideAB.enabled = false;
   
-  // Initialiser l'engine
-  engine.init();
-  
-  // Configurer les drivers TMC
-  setupDriversTMC();
-
-  // Attacher les steppers
-  for (int i=0; i<NUM_MOTORS; i++) {
-    steppers[i] = engine.stepperConnectToPin(STEP_PINS[i]);
-    if (steppers[i]) {
-      Serial.println("✅ Stepper " + String(i) + " connected to pin " + String(STEP_PINS[i]));
-      steppers[i]->setDirectionPin(DIR_PINS[i]);
-      steppers[i]->setEnablePin(ENABLE_PINS[i], true);   // true = active LOW pour TMC2209
-      steppers[i]->setAutoEnable(false);                 // Garde les moteurs alimentés
-      steppers[i]->setSpeedInHz(cfg[i].max_speed);
-      steppers[i]->setAcceleration(cfg[i].max_accel);
-      steppers[i]->enableOutputs();                      // Force l'activation maintenant
-      Serial.println("✅ Stepper " + String(i) + " configured");
-    } else {
-      Serial.println("❌ Failed to connect stepper " + String(i));
-    }
-  }
+  // Initialiser les moteurs
+  initMotors();
   
   // WiFi Manager
   WiFiManager wm;
@@ -1659,10 +1582,7 @@ void loop() {
   // Les moteurs se déplacent automatiquement
   
   // Mettre à jour les positions
-  panPos = steppers[0]->getCurrentPosition();
-  tiltPos = steppers[1]->getCurrentPosition();
-  zoomPos = steppers[2]->getCurrentPosition();
-  slidePos = steppers[3]->getCurrentPosition();
+  updateMotorPositions();
 
   // Log périodique (console web + série)
   static unsigned long tlog = 0;
