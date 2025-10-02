@@ -71,9 +71,9 @@ MotorConfig cfg[NUM_MOTORS] = {
 };
 
 // Pins moteurs
-const int STEP_PINS[NUM_MOTORS] = {14, 27, 26, 25};
-const int DIR_PINS[NUM_MOTORS] = {12, 13, 32, 33};
-const int ENABLE_PINS[NUM_MOTORS] = {15, 4, 2, 18};
+const int STEP_PINS[NUM_MOTORS] = {18, 21, 23, 26};
+const int DIR_PINS[NUM_MOTORS] = {19, 22, 25, 27};
+const int ENABLE_PINS[NUM_MOTORS] = {13, 14, 32, 33};
 
 //==================== Fonctions d'initialisation ====================
 void initMotors() {

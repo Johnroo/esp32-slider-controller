@@ -13,17 +13,15 @@
 #include <Preferences.h>
 #include "MotorControl.h"
 #include "Homing.h"
+#include "Presets.h"
+#include "Tracking.h"
+#include "MotionPlanner.h"
 
 //==================== Configuration ====================
 #define NUM_MOTORS 4
 
 //==================== NEW: Presets, offsets, mapping ====================
-struct Preset {
-  long p, t, z, s;          // positions absolues
-};
-
-Preset presets[8];         // utilitaires: /preset/set i p t z s
-int activePreset = -1;
+// Les structures et variables de presets sont maintenant dans Presets.h/cpp
 
 // Offsets joystick (en steps)
 volatile long pan_offset_steps  = 0;
@@ -45,30 +43,19 @@ struct OffsetSession {
 const long OFFSET_DEADBAND_STEPS = 2; // anti-bruit
 static inline long odband(long v){ return (labs(v) <= OFFSET_DEADBAND_STEPS) ? 0 : v; }
 
-static inline long eff_pan_offset()  { return odband(pan_offset_latched  - offset_session.pan0); }
-static inline long eff_tilt_offset() { return odband(tilt_offset_latched - offset_session.tilt0); }
+inline long eff_pan_offset()  { return odband(pan_offset_latched  - offset_session.pan0); }
+inline long eff_tilt_offset() { return odband(tilt_offset_latched - offset_session.tilt0); }
 
-static inline long active_pan_offset(bool recall_phase){ 
+long active_pan_offset(bool recall_phase){ 
   return recall_phase ? eff_pan_offset() : pan_offset_steps; 
 }
-static inline long active_tilt_offset(bool recall_phase){ 
+long active_tilt_offset(bool recall_phase){ 
   return recall_phase ? eff_tilt_offset() : tilt_offset_steps; 
 }
 
-// Mapping linéaire slide -> compensation pan/tilt (en steps)
-long PAN_AT_SLIDE_MIN  = +800;  // ex: +800 à gauche
-long PAN_AT_SLIDE_MAX  = -800;  // ex: -800 à droite
-long TILT_AT_SLIDE_MIN = 0;
-long TILT_AT_SLIDE_MAX = 0;
+// Les constantes de mapping slide->pan/tilt sont maintenant dans Tracking.h/cpp
 
-// Mouvement synchronisé en cours
-struct SyncMove {
-  bool  active = false;
-  uint32_t t0_ms = 0;
-  uint32_t T_ms  = 2000;      // durée demandée
-  long start[NUM_MOTORS];
-  long goal_base[NUM_MOTORS]; // cible sans offsets/couplages
-} sync_move;
+// La structure SyncMove est maintenant dans MotionPlanner.h/cpp
 
 // Politique d'annulation des presets
 struct CancelPolicy { 
@@ -76,21 +63,9 @@ struct CancelPolicy {
   bool by_axis = true;      // Direct Axis annule les presets (contrôle direct)
 } cancel;
 
-// Couplage Pan/Tilt ↔ Slide pendant le jog
-struct Follow {
-  bool enabled = true;
-  bool valid   = false;
-  long pan_anchor  = 0;
-  long tilt_anchor = 0;
-} follow;
+// Les structures de tracking sont maintenant dans Tracking.h/cpp
 
-// Interpolation d'ancres pendant un recall autour de l'autopan
-struct AnchorMorph {
-  bool active = false;
-  long p0 = 0, t0 = 0;
-  long p1 = 0, t1 = 0;
-  uint32_t t0_ms = 0, T_ms = 0;
-} anchor_morph;
+// La structure AnchorMorph est maintenant dans Tracking.h/cpp
 
 // Politique de recall du slide
 enum class SlideRecallPolicy : uint8_t { KEEP_AB = 0, GOTO_THEN_RESUME = 1 };
@@ -111,39 +86,14 @@ struct SlideAB {
   int dir = +1;            // +1: A->B, -1: B->A
 } slideAB;
 
-// Axe d'interpolation multi-presets (nouveau système)
-struct InterpPoint { 
-  uint8_t presetIndex; 
-  float fraction; 
-};
-
-InterpPoint interpPoints[6];  // jusqu'à 6 points (A, B, C, D, E, F)
-uint8_t interpCount = 2;      // par défaut 2 points (A@0%, B@100%)
-
-//==================== Bank System ====================
-struct Bank {
-  Preset presets[8];
-  InterpPoint interpPoints[6];
-  uint8_t interpCount;
-};
-
-Bank banks[10];              // 10 banques de presets
-uint8_t activeBank = 0;      // banque active (0-9)
+// Les structures d'interpolation et banques sont maintenant dans Presets.h/cpp
 Preferences nvs;             // pour la persistance NVS
-
-struct InterpAuto {
-  bool active = false;
-  uint32_t t0_ms = 0;
-  uint32_t T_ms = 5000;   // durée du parcours 0->100%
-  int dir = +1;           // sens courant (+1 = 0→100%, -1 = 100%→0%)
-} interpAuto;
 
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
 
-// Jog interpolation manuel
-float interp_jog_cmd = 0.0f;    // -1..+1 (vitesse normalisée)
+// La variable interp_jog_cmd est maintenant dans Presets.h/cpp
 
 // Jog Pan/Tilt (vitesses de jog) - dérivées de la config
 float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
@@ -251,210 +201,13 @@ void joystick_tick(){
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 }
 
-//==================== NEW: Planificateur "temps commun" ====================
-uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long goal[NUM_MOTORS], uint32_t T_req_ms){
-  double T = T_req_ms / 1000.0;
-  for(;;){
-    bool ok = true;
-    for(int i=0;i<NUM_MOTORS;i++){
-      double d = fabs((double)goal[i] - (double)start[i]);
-      double v_need = d * 1.875 / T;          // steps/s
-      double a_need = d * 5.7735 / (T*T);     // steps/s^2
-      if (v_need > cfg[i].max_speed*0.90 || a_need > cfg[i].max_accel*0.90){
-        // augmente T de 10%
-        T *= 1.10;
-        ok = false;
-        break;
-      }
-    }
-    if (ok) break;
-  }
-  return (uint32_t)lround(T*1000.0);
-}
+// Les fonctions de planification sont maintenant dans MotionPlanner.cpp
 
-//==================== Bank Management Functions ====================
-void saveBank(uint8_t idx) {
-  if (idx >= 10) return;
-  
-  // Copier les variables globales vers la structure Bank
-  for (int i = 0; i < 8; i++) {
-    banks[idx].presets[i] = presets[i];
-  }
-  for (int i = 0; i < 6; i++) {
-    banks[idx].interpPoints[i] = interpPoints[i];
-  }
-  banks[idx].interpCount = interpCount;
-  
-  // Initialiser NVS
-  if (!nvs.begin("banks")) {
-    Serial.println("❌ Erreur NVS");
-    return;
-  }
-  
-  // Créer le JSON
-  DynamicJsonDocument doc(4096);
-  JsonArray presetsArray = doc.createNestedArray("presets");
-  JsonArray interpArray = doc.createNestedArray("interp");
-  
-  // Sérialiser les presets
-  for (int i = 0; i < 8; i++) {
-    JsonObject preset = presetsArray.createNestedObject();
-    preset["p"] = banks[idx].presets[i].p;
-    preset["t"] = banks[idx].presets[i].t;
-    preset["z"] = banks[idx].presets[i].z;
-    preset["s"] = banks[idx].presets[i].s;
-  }
-  
-  // Sérialiser l'interpolation
-  for (int i = 0; i < banks[idx].interpCount; i++) {
-    JsonObject interp = interpArray.createNestedObject();
-    interp["presetIndex"] = banks[idx].interpPoints[i].presetIndex;
-    interp["fraction"] = banks[idx].interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
-  }
-  doc["interpCount"] = banks[idx].interpCount;
-  
-  // Sérialiser en string
-  String jsonString;
-  serializeJson(doc, jsonString);
-  
-  // Sauvegarder en NVS
-  String key = "bank" + String(idx);
-  nvs.putString(key.c_str(), jsonString);
-  nvs.end();
-  
-  Serial.printf("💾 Banque %d sauvegardée (%d presets, %d points interp)\n", idx, 8, banks[idx].interpCount);
-}
+// Les fonctions de gestion des banques sont maintenant dans Presets.cpp
 
-void loadBank(uint8_t idx) {
-  if (idx >= 10) return;
-  
-  // Initialiser NVS
-  if (!nvs.begin("banks")) {
-    Serial.println("❌ Erreur NVS");
-    return;
-  }
-  
-  String key = "bank" + String(idx);
-  String jsonString = nvs.getString(key.c_str());
-  nvs.end();
-  
-  if (jsonString.length() == 0) {
-    Serial.printf("⚠️ Banque %d vide, initialisation par défaut\n", idx);
-    // Initialiser avec des valeurs par défaut
-    for (int i = 0; i < 8; i++) {
-      banks[idx].presets[i] = {0, 0, 0, 0};
-      presets[i] = banks[idx].presets[i];
-    }
-    banks[idx].interpPoints[0] = {0, 0.0f};
-    banks[idx].interpPoints[1] = {1, 1.0f};
-    banks[idx].interpCount = 2;
-    interpPoints[0] = banks[idx].interpPoints[0];
-    interpPoints[1] = banks[idx].interpPoints[1];
-    interpCount = banks[idx].interpCount;
-    return;
-  }
-  
-  // Parser le JSON
-  DynamicJsonDocument doc(4096);
-  DeserializationError error = deserializeJson(doc, jsonString);
-  if (error) {
-    Serial.printf("❌ Erreur JSON banque %d: %s\n", idx, error.c_str());
-    return;
-  }
-  
-  // Charger les presets dans la structure Bank ET les variables globales
-  JsonArray presetsArray = doc["presets"];
-  for (int i = 0; i < 8 && i < presetsArray.size(); i++) {
-    JsonObject preset = presetsArray[i];
-    banks[idx].presets[i].p = preset["p"];
-    banks[idx].presets[i].t = preset["t"];
-    banks[idx].presets[i].z = preset["z"];
-    banks[idx].presets[i].s = preset["s"];
-    // Ignorer gracieusement les anciens champs mode, pan_anchor et tilt_anchor s'ils existent
-    
-    // Copier vers les variables globales
-    presets[i] = banks[idx].presets[i];
-  }
-  
-  // Charger l'interpolation dans la structure Bank ET les variables globales
-  JsonArray interpArray = doc["interp"];
-  banks[idx].interpCount = min((int)interpArray.size(), 6);
-  for (int i = 0; i < banks[idx].interpCount; i++) {
-    JsonObject interp = interpArray[i];
-    banks[idx].interpPoints[i].presetIndex = interp["presetIndex"];
-    banks[idx].interpPoints[i].fraction = interp["fraction"].as<float>() / 100.0f; // Convertir depuis pourcentage
-    
-    // Copier vers les variables globales
-    interpPoints[i] = banks[idx].interpPoints[i];
-  }
-  interpCount = banks[idx].interpCount;
-  
-  // Appliquer automatiquement les points d'interpolation (comme si l'utilisateur avait cliqué "Apply")
-  // Les points sont déjà chargés dans interpPoints[] et interpCount, l'axe d'interpolation est actif
-  
-  Serial.printf("📂 Banque %d chargée (%d presets, %d points interp) - Axe d'interpolation activé\n", idx, 8, interpCount);
-}
+// Les fonctions de mapping slide->pan/tilt sont maintenant dans Tracking.cpp
 
-void saveActiveBank() {
-  saveBank(activeBank);
-}
-
-void loadActiveBank() {
-  loadBank(activeBank);
-}
-
-//==================== NEW: Mapping slide->pan/tilt ====================
-long pan_comp_from_slide(long slide){
-  float u = (float)(slide - cfg[3].min_limit) / (float)(cfg[3].max_limit - cfg[3].min_limit);
-  return (long) lround(lerp(PAN_AT_SLIDE_MIN, PAN_AT_SLIDE_MAX, clampF(u,0,1)));
-}
-long tilt_comp_from_slide(long slide){
-  float u = (float)(slide - cfg[3].min_limit) / (float)(cfg[3].max_limit - cfg[3].min_limit);
-  return (long) lround(lerp(TILT_AT_SLIDE_MIN, TILT_AT_SLIDE_MAX, clampF(u,0,1)));
-}
-
-// Helper pour rafraîchir l'ancre de suivi
-static inline void follow_refresh_anchor() {
-  long s = steppers[3]->targetPos();
-  follow.pan_anchor  = steppers[0]->targetPos() - pan_comp_from_slide(s);
-  follow.tilt_anchor = steppers[1]->targetPos() - tilt_comp_from_slide(s);
-  follow.valid = true;
-}
-
-//==================== Interpolation multi-presets ====================
-void computeInterpolatedPosition(float u, long &P, long &T, long &Z, long &S) {
-  // Bornes : si en-dessous du premier point ou au-delà du dernier
-  if (u <= interpPoints[0].fraction) {
-    uint8_t idx = interpPoints[0].presetIndex;
-    P = presets[idx].p;  T = presets[idx].t;
-    Z = presets[idx].z;  S = presets[idx].s;
-    return;
-  }
-  if (u >= interpPoints[interpCount-1].fraction) {
-    uint8_t idx = interpPoints[interpCount-1].presetIndex;
-    P = presets[idx].p;  T = presets[idx].t;
-    Z = presets[idx].z;  S = presets[idx].s;
-    return;
-  }
-  
-  // Trouver le segment [j, j+1] contenant u
-  uint8_t j = 0;
-  while (j < interpCount-1 && interpPoints[j+1].fraction < u) { j++; }
-  
-  // Interpolation linéaire entre point j et j+1
-  float u0 = interpPoints[j].fraction;
-  float u1 = interpPoints[j+1].fraction;
-  float alpha = (u - u0) / (u1 - u0);  // fraction relative entre ces deux points
-  
-  uint8_t presetA = interpPoints[j].presetIndex;
-  uint8_t presetB = interpPoints[j+1].presetIndex;
-  
-  // Interpolation linéaire des axes
-  P = lround( lerp((float)presets[presetA].p, (float)presets[presetB].p, alpha) );
-  T = lround( lerp((float)presets[presetA].t, (float)presets[presetB].t, alpha) );
-  Z = lround( lerp((float)presets[presetA].z, (float)presets[presetB].z, alpha) );
-  S = lround( lerp((float)presets[presetA].s, (float)presets[presetB].s, alpha) );
-}
+// La fonction computeInterpolatedPosition est maintenant dans Presets.cpp
 
 //==================== NEW: Tick de coordination ====================
 void coordinator_tick(){
@@ -514,16 +267,8 @@ void coordinator_tick(){
     steppers[3]->moveTo(Sgoal);
 
     // Faire suivre Pan/Tilt via la map + offsets joystick
-    if (follow.enabled){
-      if (!follow.valid) follow_refresh_anchor();
-      long pComp = pan_comp_from_slide(Sgoal);
-      long tComp = tilt_comp_from_slide(Sgoal);
-      bool in_recall = sync_move.active || anchor_morph.active;
-      long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
-      long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
-      steppers[0]->moveTo(Pgoal);
-      steppers[1]->moveTo(Tgoal);
-    }
+    bool in_recall = sync_move.active || isAnchorMorphActive();
+    updateTrackingForJog(Sgoal, in_recall);
 
     // Ne plus retourner ici — on laisse la suite traiter le joystick P/T
   }
@@ -601,31 +346,17 @@ void coordinator_tick(){
       steppers[3]->moveTo(Sgoal);
 
       // Faire suivre Pan/Tilt via la map slide->pan/tilt
-      if (follow.enabled) {
-        if (!follow.valid) follow_refresh_anchor();
-        long pComp = pan_comp_from_slide(Sgoal);
-        long tComp = tilt_comp_from_slide(Sgoal);
-        bool in_recall = sync_move.active || anchor_morph.active;
-        long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
-        long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
-        
-        // Ne PAS écraser un axe si le joystick le pilote déjà
-        bool joyP = fabsf(joy_filt.pan)  > 0.001f;
-        bool joyT = fabsf(joy_filt.tilt) > 0.001f;
-        
-        if (!joyP) steppers[0]->moveTo(Pgoal);
-        if (!joyT) steppers[1]->moveTo(Tgoal);
-      }
+      bool in_recall = isMoveActive() || isAnchorMorphActive();
+      updateTrackingForJog(Sgoal, in_recall);
     }
   }
 
   // 2) Mouvement synchronisé
-  if (sync_move.active){
-    float tau = (float)(now - sync_move.t0_ms) / (float)sync_move.T_ms;
-    if (tau >= 1.0f){
-      // Fin de mouvement
-      sync_move.active = false;
-      follow.valid = false;   // re-anchor next time
+  if (updateMotionPlanner(now)) {
+    // Le mouvement est en cours, gérer les actions post-mouvement
+    if (!isMoveActive()) {
+      // Fin du mouvement
+      invalidateAnchor();   // re-anchor next time
       
       // Rephase AB après GOTO_THEN_RESUME pour éviter un saut
       if (recallPolicy.slide == SlideRecallPolicy::GOTO_THEN_RESUME && slideAB.enabled) {
@@ -634,41 +365,7 @@ void coordinator_tick(){
         slideAB.dir = (abs(current_slide - slideAB.A) < abs(current_slide - slideAB.B)) ? +1 : -1;
         Serial.println("🔄 AB rephased after GOTO_THEN_RESUME");
       }
-      
-      tau = 1.0f;
     }
-    float s = s_minjerk(tau);
-
-    // Slide de référence (pour couplage)
-    long slide_ref = (long)lround( sync_move.start[3] + (sync_move.goal_base[3] - sync_move.start[3]) * s );
-    slide_ref = clampL(slide_ref, cfg[3].min_limit, cfg[3].max_limit);
-
-    // Compensations en fonction du slide + offsets joystick (toujours actifs)
-    long pan_comp  = pan_comp_from_slide(slide_ref);
-    long tilt_comp = tilt_comp_from_slide(slide_ref);
-
-    long pan_goal  = sync_move.goal_base[0] + pan_comp + eff_pan_offset();
-    long tilt_goal = sync_move.goal_base[1] + tilt_comp + eff_tilt_offset();
-    long zoom_goal = sync_move.goal_base[2];
-    long slide_goal= sync_move.goal_base[3];
-
-    // Cibles "à l'instant" suivant s(t)
-    long P = (long)lround( sync_move.start[0] + (pan_goal  - sync_move.start[0]) * s );
-    long T = (long)lround( sync_move.start[1] + (tilt_goal - sync_move.start[1]) * s );
-    long Z = (long)lround( sync_move.start[2] + (zoom_goal - sync_move.start[2]) * s );
-    long S = (long)lround( sync_move.start[3] + (slide_goal- sync_move.start[3]) * s );
-
-    // Clip limites
-    P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
-    T = clampL(T, cfg[1].min_limit, cfg[1].max_limit);
-    Z = clampL(Z, cfg[2].min_limit, cfg[2].max_limit);
-    S = clampL(S, cfg[3].min_limit, cfg[3].max_limit);
-
-    // On pousse les cibles. FastAccelStepper replanifie en douceur.
-    steppers[0]->moveTo(P);
-    steppers[1]->moveTo(T);
-    steppers[2]->moveTo(Z);
-    steppers[3]->moveTo(S);
   }
 }
 
@@ -713,8 +410,8 @@ void processOSC() {
       // Joystick en OSC (-1..+1)
       msg.dispatch("/pan", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -722,8 +419,8 @@ void processOSC() {
       });
       msg.dispatch("/tilt", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -731,8 +428,8 @@ void processOSC() {
       });
       msg.dispatch("/joy/pt", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -741,8 +438,8 @@ void processOSC() {
       });
       msg.dispatch("/slide/jog", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -772,9 +469,9 @@ void processOSC() {
       
       // Configuration du suivi Pan/Tilt ↔ Slide
       msg.dispatch("/follow/en", [](OSCMessage &m){
-        follow.enabled = m.getInt(0) != 0;
-        follow.valid = false;
-        Serial.printf("🎯 Follow mapping on jog: %s\n", follow.enabled ? "ON" : "OFF");
+        setTrackingEnabled(m.getInt(0) != 0);
+        invalidateAnchor();
+        Serial.printf("🎯 Follow mapping on jog: %s\n", isTrackingEnabled() ? "ON" : "OFF");
       });
       
       // Mode AB infini pour le slide (déprécié)
@@ -829,7 +526,7 @@ void processOSC() {
           
           // Désactiver modes concurrents
           slideAB.enabled = false;
-          sync_move.active = false;
+          stopPlannedMove();
           follow.valid = false;
           
           Serial.printf("▶️ Interpolation auto ON (T=%u ms, %.1fs)\n", T_ms, duration);
@@ -877,8 +574,8 @@ void processOSC() {
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -892,8 +589,8 @@ void processOSC() {
       
       msg.dispatch("/axis_tilt", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -907,8 +604,8 @@ void processOSC() {
       
       msg.dispatch("/axis_zoom", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -922,8 +619,8 @@ void processOSC() {
       
       msg.dispatch("/axis_slide", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isMoveActive()) {
+          stopPlannedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -1109,8 +806,8 @@ void processOSC() {
         long T = steppers[1]->getCurrentPosition();
         long Z = steppers[2]->getCurrentPosition();
 
-        long pComp = pan_comp_from_slide(S);
-        long tComp = tilt_comp_from_slide(S);
+        // Les compensations sont maintenant gérées par le module Tracking
+        // Pas besoin de les recalculer ici
 
         presets[i].p = P; presets[i].t = T; presets[i].z = Z; presets[i].s = S;
 
@@ -1145,17 +842,7 @@ void processOSC() {
           // Mouvement synchronisé normal (ABSOLUTE ou policy GOTO_THEN_RESUME)
           long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
 
-          for(int ax=0; ax<NUM_MOTORS; ++ax){
-            sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
-            sync_move.goal_base[ax] = clampL(base_goal[ax], cfg[ax].min_limit, cfg[ax].max_limit);
-          }
-
-          sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
-          sync_move.t0_ms = millis();
-          sync_move.active = true;
-          Serial.printf("\xE2\x96\xBA Recall(ABS): P:%ld T:%ld Z:%ld S:%ld in %u ms\n",
-                        sync_move.goal_base[0], sync_move.goal_base[1],
-                        sync_move.goal_base[2], sync_move.goal_base[3], sync_move.T_ms);
+          planSynchronizedMove(base_goal, Tms_req);
         }
       });
 
@@ -1168,14 +855,12 @@ void processOSC() {
 
         long s_goal = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, u));
         // Construire un "preset" ad-hoc qui ne bouge que le slide
+        long target_positions[NUM_MOTORS];
         for(int ax=0; ax<NUM_MOTORS; ++ax){
-          sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
-          sync_move.goal_base[ax] = (ax==3) ? s_goal : sync_move.start[ax];
+          target_positions[ax] = (ax==3) ? s_goal : steppers[ax]->getCurrentPosition();
         }
         uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
-        sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
-        sync_move.t0_ms = millis();
-        sync_move.active = true;
+        planSynchronizedMove(target_positions, Tms_req);
       });
 
       // Config: ranges offsets et mapping slide->pan/tilt
@@ -1184,12 +869,18 @@ void processOSC() {
         TILT_OFFSET_RANGE = m.getInt(1);
       });
       msg.dispatch("/config/pan_map", [](OSCMessage &m){
-        PAN_AT_SLIDE_MIN = m.getInt(0);
-        PAN_AT_SLIDE_MAX = m.getInt(1);
+        long pan_min = m.getInt(0);
+        long pan_max = m.getInt(1);
+        long tilt_min, tilt_max;
+        getSlideMapping(pan_min, pan_max, tilt_min, tilt_max);
+        setSlideMapping(m.getInt(0), m.getInt(1), tilt_min, tilt_max);
       });
       msg.dispatch("/config/tilt_map", [](OSCMessage &m){
-        TILT_AT_SLIDE_MIN = m.getInt(0);
-        TILT_AT_SLIDE_MAX = m.getInt(1);
+        long tilt_min = m.getInt(0);
+        long tilt_max = m.getInt(1);
+        long pan_min, pan_max;
+        getSlideMapping(pan_min, pan_max, tilt_min, tilt_max);
+        setSlideMapping(pan_min, pan_max, m.getInt(0), m.getInt(1));
       });
       
       //==================== NEW: Routes OSC pour offsets latched ====================
@@ -1216,11 +907,13 @@ void processOSC() {
       });
       
       msg.dispatch("/offset/bake", [](OSCMessage &m){
-        if (sync_move.active){
-          // Intègre l'offset actuel dans la goal_base du preset
-          sync_move.goal_base[0] = clampL(sync_move.goal_base[0] + pan_offset_latched,  cfg[0].min_limit, cfg[0].max_limit);
-          sync_move.goal_base[1] = clampL(sync_move.goal_base[1] + tilt_offset_latched, cfg[1].min_limit, cfg[1].max_limit);
-          Serial.println("🍞 Bake offsets into preset: pan=" + String(sync_move.goal_base[0]) + ", tilt=" + String(sync_move.goal_base[1]));
+        if (isMoveActive()){
+          // Intègre l'offset actuel dans les positions cibles du mouvement en cours
+          long target_positions[NUM_MOTORS];
+          getTargetPositions(target_positions);
+          target_positions[0] = clampL(target_positions[0] + pan_offset_latched,  cfg[0].min_limit, cfg[0].max_limit);
+          target_positions[1] = clampL(target_positions[1] + tilt_offset_latched, cfg[1].min_limit, cfg[1].max_limit);
+          Serial.println("🍞 Bake offsets into preset: pan=" + String(target_positions[0]) + ", tilt=" + String(target_positions[1]));
         }
         pan_offset_latched  = 0;
         tilt_offset_latched = 0;
@@ -1265,7 +958,7 @@ void setupWebServer() {
     
     // État des modes actifs
     doc["modes"]["interpAuto"] = interpAuto.active;
-    doc["modes"]["syncMove"] = sync_move.active;
+    doc["modes"]["syncMove"] = isMoveActive();
     doc["modes"]["slideAB"] = slideAB.enabled;
     
     // Banque active
@@ -1389,7 +1082,7 @@ void setup() {
   Serial.println("📂 Banque 0 chargée au démarrage");
   
   // Désactiver les anciens modes par défaut
-  follow.enabled = false;
+  setTrackingEnabled(false);
   slideAB.enabled = false;
   
   // Initialiser les moteurs
@@ -1397,6 +1090,15 @@ void setup() {
   
   // Initialiser le module de homing
   initHoming();
+  
+  // Initialiser le module de presets
+  initPresets();
+  
+  // Initialiser le module de tracking
+  initTracking();
+  
+  // Initialiser le module de planification des mouvements
+  initMotionPlanner();
   
   // WiFi Manager
   WiFiManager wm;
