@@ -1,0 +1,97 @@
+{
+  "metadata": {
+    "exported_at": "2025-10-02T11:57:56.070044",
+    "bank_id": 0,
+    "version": "1.0",
+    "description": "Bank 0 export (DEMO DATA - ESP32 not connected)",
+    "demo_data": true
+  },
+  "bank_data": {
+    "presets": [
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      },
+      {
+        "p": 0,
+        "t": 0,
+        "z": 0,
+        "s": 0,
+        "pan_anchor": 0,
+        "tilt_anchor": 0,
+        "mode": 0
+      }
+    ],
+    "interpCount": 2,
+    "interpPoints": [
+      {
+        "presetIndex": 0,
+        "fraction": 0.0
+      },
+      {
+        "presetIndex": 1,
+        "fraction": 1.0
+      }
+    ],
+    "_demo_data": true
+  }
+}

@@ -899,8 +899,14 @@ def api_bank_export(bank_id):
     try:
         # Récupérer les données de la banque depuis l'ESP32
         esp32_data = get_esp32_data(f'/api/bank/{bank_id}')
+        
+        # Si l'ESP32 n'est pas connecté, retourner une erreur
         if not esp32_data:
-            return jsonify({'error': 'Failed to get bank data from ESP32'}), 500
+            print(f"[EXPORT] ESP32 non connecté, impossible d'exporter Bank {bank_id}")
+            return jsonify({
+                'error': 'ESP32 not connected - Cannot export bank data',
+                'message': 'Please ensure the ESP32 is connected and running the latest firmware'
+            }), 503
         
         # Créer le nom de fichier avec timestamp
         from datetime import datetime
@@ -997,6 +1003,7 @@ def api_bank_import():
         return jsonify({'error': 'Invalid JSON file'}), 400
     except Exception as e:
         return jsonify({'error': f'Import failed: {str(e)}'}), 500
+
 
 def send_bank_to_esp32(bank_id, bank_data):
     """Envoie les données de banque à l'ESP32 via OSC"""
