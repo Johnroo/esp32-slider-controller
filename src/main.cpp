@@ -1568,8 +1568,10 @@ void setupWebServer() {
   });
   
   //==================== Bank Export Endpoint ====================
-  webServer.on("/api/bank/{id}", HTTP_GET, [](AsyncWebServerRequest *req){
-    int bankId = req->pathArg(0).toInt();
+  webServer.on("/api/bank/*", HTTP_GET, [](AsyncWebServerRequest *req){
+    String url = req->url();
+    // Extraire l'ID de la banque de l'URL (ex: /api/bank/0 -> 0)
+    int bankId = url.substring(url.lastIndexOf('/') + 1).toInt();
     Serial.printf("📤 /api/bank/%d requested\n", bankId);
     
     if (bankId < 0 || bankId >= 10) {
