@@ -58,7 +58,12 @@ def main():
     print("🎮 Starting joystick thread...")
     _start_joystick_thread()
     
-    app.run(host='0.0.0.0', port=FLASK_PORT, debug=True)
+    # Supprimer les logs HTTP pour avoir une console propre
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
+    app.run(host='0.0.0.0', port=FLASK_PORT, debug=False)
 
 if __name__ == '__main__':
     main()
