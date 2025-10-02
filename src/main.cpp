@@ -22,8 +22,6 @@ enum PresetMode : uint8_t { PRESET_ABSOLUTE = 0, PRESET_FOLLOW_SLIDE = 1 };
 
 struct Preset {
   long p, t, z, s;          // positions absolues
-  long pan_anchor;          // ancre P relative au slide
-  long tilt_anchor;         // ancre T relative au slide
   uint8_t mode;             // PRESET_ABSOLUTE ou PRESET_FOLLOW_SLIDE
 };
 
@@ -512,8 +510,6 @@ void saveBank(uint8_t idx) {
     preset["z"] = banks[idx].presets[i].z;
     preset["s"] = banks[idx].presets[i].s;
     preset["mode"] = banks[idx].presets[i].mode;
-    preset["pan_anchor"] = banks[idx].presets[i].pan_anchor;
-    preset["tilt_anchor"] = banks[idx].presets[i].tilt_anchor;
   }
   
   // Sérialiser l'interpolation
@@ -553,7 +549,7 @@ void loadBank(uint8_t idx) {
     Serial.printf("⚠️ Banque %d vide, initialisation par défaut\n", idx);
     // Initialiser avec des valeurs par défaut
     for (int i = 0; i < 8; i++) {
-      banks[idx].presets[i] = {0, 0, 0, 0, 0, 0, 0};
+      banks[idx].presets[i] = {0, 0, 0, 0, 0};
       presets[i] = banks[idx].presets[i];
     }
     banks[idx].interpPoints[0] = {0, 0.0f};
@@ -582,8 +578,7 @@ void loadBank(uint8_t idx) {
     banks[idx].presets[i].z = preset["z"];
     banks[idx].presets[i].s = preset["s"];
     banks[idx].presets[i].mode = preset["mode"];
-    banks[idx].presets[i].pan_anchor = preset["pan_anchor"];
-    banks[idx].presets[i].tilt_anchor = preset["tilt_anchor"];
+    // Ignorer gracieusement les anciens champs pan_anchor et tilt_anchor s'ils existent
     
     // Copier vers les variables globales
     presets[i] = banks[idx].presets[i];
@@ -1332,12 +1327,10 @@ void processOSC() {
         long tComp = tilt_comp_from_slide(S);
 
         presets[i].p = P; presets[i].t = T; presets[i].z = Z; presets[i].s = S;
-        presets[i].pan_anchor  = P - pComp;
-        presets[i].tilt_anchor = T - tComp;
         presets[i].mode = follow.enabled ? PRESET_FOLLOW_SLIDE : PRESET_ABSOLUTE;
 
-        Serial.printf("\xF0\x9F\x92\xBE Store preset %d | ABS P:%ld T:%ld Z:%ld S:%ld | ANCHOR P:%ld T:%ld | mode:%d\n",
-                      i, P,T,Z,S, presets[i].pan_anchor, presets[i].tilt_anchor, presets[i].mode);
+        Serial.printf("\xF0\x9F\x92\xBE Store preset %d | ABS P:%ld T:%ld Z:%ld S:%ld | mode:%d\n",
+                      i, P,T,Z,S, presets[i].mode);
       });
 
       // Forcer le mode d'un preset
@@ -1370,17 +1363,9 @@ void processOSC() {
 
         bool can_follow_recall = follow.enabled && slideAB.enabled && (presets[i].mode==PRESET_FOLLOW_SLIDE);
         if (can_follow_recall && recallPolicy.slide == SlideRecallPolicy::KEEP_AB) {
-          // Morph des ancres autour de l'autopan AB : n'arme pas sync_move
-          anchor_morph.active = true;
-          anchor_morph.p0 = follow.pan_anchor;
-          anchor_morph.t0 = follow.tilt_anchor;
-          anchor_morph.p1 = presets[i].pan_anchor;
-          anchor_morph.t1 = presets[i].tilt_anchor;
-          anchor_morph.t0_ms = millis();
-          anchor_morph.T_ms  = Tms_req;
+          // Mode FOLLOW_SLIDE simplifié : utiliser directement les valeurs interpolées
           follow.valid = true;
-          Serial.printf("\xE2\x96\xBA Recall(FOLLOW+AB): morph anchors to P:%ld T:%ld in %u ms\n",
-                        anchor_morph.p1, anchor_morph.t1, anchor_morph.T_ms);
+          Serial.printf("\xE2\x96\xBA Recall(FOLLOW_SLIDE): using interpolated values\n");
         } else {
           // Mouvement synchronisé normal (ABSOLUTE ou policy GOTO_THEN_RESUME)
           long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
@@ -1590,8 +1575,6 @@ void setupWebServer() {
       preset["t"] = p.t;
       preset["z"] = p.z;
       preset["s"] = p.s;
-      preset["pan_anchor"] = p.pan_anchor;
-      preset["tilt_anchor"] = p.tilt_anchor;
       preset["mode"] = p.mode;
     }
     
