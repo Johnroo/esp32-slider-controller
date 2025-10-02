@@ -18,11 +18,8 @@
 #define NUM_MOTORS 4
 
 //==================== NEW: Presets, offsets, mapping ====================
-enum PresetMode : uint8_t { PRESET_ABSOLUTE = 0, PRESET_FOLLOW_SLIDE = 1 };
-
 struct Preset {
   long p, t, z, s;          // positions absolues
-  uint8_t mode;             // PRESET_ABSOLUTE ou PRESET_FOLLOW_SLIDE
 };
 
 Preset presets[8];         // utilitaires: /preset/set i p t z s
@@ -509,7 +506,6 @@ void saveBank(uint8_t idx) {
     preset["t"] = banks[idx].presets[i].t;
     preset["z"] = banks[idx].presets[i].z;
     preset["s"] = banks[idx].presets[i].s;
-    preset["mode"] = banks[idx].presets[i].mode;
   }
   
   // Sérialiser l'interpolation
@@ -549,7 +545,7 @@ void loadBank(uint8_t idx) {
     Serial.printf("⚠️ Banque %d vide, initialisation par défaut\n", idx);
     // Initialiser avec des valeurs par défaut
     for (int i = 0; i < 8; i++) {
-      banks[idx].presets[i] = {0, 0, 0, 0, 0};
+      banks[idx].presets[i] = {0, 0, 0, 0};
       presets[i] = banks[idx].presets[i];
     }
     banks[idx].interpPoints[0] = {0, 0.0f};
@@ -577,8 +573,7 @@ void loadBank(uint8_t idx) {
     banks[idx].presets[i].t = preset["t"];
     banks[idx].presets[i].z = preset["z"];
     banks[idx].presets[i].s = preset["s"];
-    banks[idx].presets[i].mode = preset["mode"];
-    // Ignorer gracieusement les anciens champs pan_anchor et tilt_anchor s'ils existent
+    // Ignorer gracieusement les anciens champs mode, pan_anchor et tilt_anchor s'ils existent
     
     // Copier vers les variables globales
     presets[i] = banks[idx].presets[i];
@@ -1327,19 +1322,12 @@ void processOSC() {
         long tComp = tilt_comp_from_slide(S);
 
         presets[i].p = P; presets[i].t = T; presets[i].z = Z; presets[i].s = S;
-        presets[i].mode = follow.enabled ? PRESET_FOLLOW_SLIDE : PRESET_ABSOLUTE;
 
-        Serial.printf("\xF0\x9F\x92\xBE Store preset %d | ABS P:%ld T:%ld Z:%ld S:%ld | mode:%d\n",
-                      i, P,T,Z,S, presets[i].mode);
+        Serial.printf("\xF0\x9F\x92\xBE Store preset %d | ABS P:%ld T:%ld Z:%ld S:%ld\n",
+                      i, P,T,Z,S);
       });
 
-      // Forcer le mode d'un preset
-      msg.dispatch("/preset/mode", [](OSCMessage &m){
-        int i = m.getInt(0);
-        int md = m.getInt(1);
-        presets[i].mode = (md==1) ? PRESET_FOLLOW_SLIDE : PRESET_ABSOLUTE;
-        Serial.printf("Preset %d mode=%d\n", i, presets[i].mode);
-      });
+      // Mode preset supprimé - plus de différenciation entre ABSOLUTE et FOLLOW_SLIDE
 
       // Policy de recall slide
       msg.dispatch("/preset/recall_policy", [](OSCMessage &m){
@@ -1361,12 +1349,8 @@ void processOSC() {
 
         uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
 
-        bool can_follow_recall = follow.enabled && slideAB.enabled && (presets[i].mode==PRESET_FOLLOW_SLIDE);
-        if (can_follow_recall && recallPolicy.slide == SlideRecallPolicy::KEEP_AB) {
-          // Mode FOLLOW_SLIDE simplifié : utiliser directement les valeurs interpolées
-          follow.valid = true;
-          Serial.printf("\xE2\x96\xBA Recall(FOLLOW_SLIDE): using interpolated values\n");
-        } else {
+        // Logique simplifiée : tous les presets sont maintenant absolus
+        {
           // Mouvement synchronisé normal (ABSOLUTE ou policy GOTO_THEN_RESUME)
           long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
 
@@ -1492,7 +1476,6 @@ void setupWebServer() {
     doc["modes"]["interpAuto"] = interpAuto.active;
     doc["modes"]["syncMove"] = sync_move.active;
     doc["modes"]["slideAB"] = slideAB.enabled;
-    doc["modes"]["follow"] = follow.valid;
     
     // Banque active
     doc["bank"]["active"] = activeBank;
@@ -1575,7 +1558,6 @@ void setupWebServer() {
       preset["t"] = p.t;
       preset["z"] = p.z;
       preset["s"] = p.s;
-      preset["mode"] = p.mode;
     }
     
     // Récupérer les points d'interpolation de la banque
