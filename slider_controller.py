@@ -879,6 +879,16 @@ def api_esp32_ping():
             'url': ESP32_HTTP_URL
         })
 
+@app.route('/api/esp32/config', methods=['GET'])
+def api_esp32_config():
+    """Retourne la configuration ESP32"""
+    return jsonify({
+        'esp32_ip': ESP32_IP,
+        'esp32_url': ESP32_HTTP_URL,
+        'flask_port': FLASK_PORT,
+        'osc_port': ESP32_OSC_PORT
+    })
+
 @app.route('/api/esp32/axes/status', methods=['GET'])
 def api_esp32_axes_status():
     """Récupère les positions normalisées des axes depuis l'ESP32"""

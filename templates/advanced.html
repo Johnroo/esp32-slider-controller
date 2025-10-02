@@ -546,9 +546,13 @@
                 
                 <!-- Debug Test Button -->
                 <div class="control-group" style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffeaa7;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>ESP32 Debug Tools:</strong>
+                    </div>
                     <button onclick="testPing()" class="btn btn-warning" style="margin-right: 10px;">🏓 Ping ESP32</button>
                     <button onclick="testConnection()" class="btn btn-warning" style="margin-right: 10px;">🧪 Test API Connection</button>
-                    <button onclick="refreshAxes()" class="btn btn-primary">🔄 Test Axes Refresh</button>
+                    <button onclick="refreshAxes()" class="btn btn-primary" style="margin-right: 10px;">🔄 Test Axes Refresh</button>
+                    <button onclick="checkESP32IP()" class="btn btn-info">📍 Check ESP32 IP</button>
                 </div>
                 <div class="control-group">
                     <label>Pan (0 to 1):</label>
@@ -1530,6 +1534,24 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 return true;
             } catch(e){ 
                 console.error('❌ ESP32 ping failed:', e); 
+                return false;
+            }
+        }
+        
+        // Function pour vérifier l'IP de l'ESP32 (globale)
+        window.checkESP32IP = async function(){
+            try {
+                console.log('📍 Checking ESP32 IP configuration...');
+                const r = await fetch('/api/esp32/config');
+                if (!r.ok) {
+                    throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+                }
+                const data = await r.json();
+                console.log('📍 ESP32 config:', data);
+                alert(`ESP32 Configuration:\nIP: ${data.esp32_ip}\nURL: ${data.esp32_url}\nFlask Port: ${data.flask_port}`);
+                return true;
+            } catch(e){ 
+                console.error('❌ ESP32 config check failed:', e); 
                 return false;
             }
         }
