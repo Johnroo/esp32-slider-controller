@@ -19,13 +19,6 @@ extern long TILT_AT_SLIDE_MIN;  // ex: 0
 extern long TILT_AT_SLIDE_MAX;  // ex: 0
 
 //==================== Structures de données ====================
-struct Follow {
-  bool enabled = true;
-  bool valid   = false;
-  long pan_anchor  = 0;
-  long tilt_anchor = 0;
-};
-
 struct AnchorMorph {
   bool active = false;
   long p0 = 0, t0 = 0;
@@ -34,7 +27,6 @@ struct AnchorMorph {
 };
 
 //==================== Variables globales ====================
-extern Follow follow;
 extern AnchorMorph anchor_morph;
 
 //==================== Fonctions du module ====================
@@ -50,41 +42,7 @@ void initTracking();
  */
 void updateTracking();
 
-/**
- * @brief Calcule la compensation pan à partir de la position slide
- * @param slide Position actuelle du slide
- * @return Compensation pan en steps
- */
-long panCompFromSlide(long slide);
-
-/**
- * @brief Calcule la compensation tilt à partir de la position slide
- * @param slide Position actuelle du slide
- * @return Compensation tilt en steps
- */
-long tiltCompFromSlide(long slide);
-
-/**
- * @brief Rafraîchit l'ancre de suivi
- * @details Calcule les ancres pan/tilt basées sur la position actuelle
- */
-void refreshFollowAnchor();
-
-/**
- * @brief Active le mode de suivi
- */
-void startTracking();
-
-/**
- * @brief Désactive le mode de suivi
- */
-void stopTracking();
-
-/**
- * @brief Vérifie si le suivi est activé
- * @return true si activé, false sinon
- */
-bool isTrackingEnabled();
+// Fonctions follow obsolètes supprimées (panCompFromSlide, tiltCompFromSlide, refreshFollowAnchor, etc.)
 
 /**
  * @brief Démarre l'interpolation d'ancre

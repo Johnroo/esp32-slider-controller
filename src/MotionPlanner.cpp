@@ -49,10 +49,6 @@ void updateMotionPlanner() {
   if (tau >= 1.0f) {
     // Fin de mouvement
     sync_move.active = false;
-    follow.valid = false;   // re-anchor next time
-    
-    // Rephase AB après GOTO_THEN_RESUME pour éviter un saut
-    // Note: Cette logique sera gérée dans le module principal si nécessaire
     
     Serial.println("✅ Mouvement synchronisé terminé");
     return;
@@ -65,13 +61,11 @@ void updateMotionPlanner() {
   long slide_ref = (long)lround( sync_move.start[3] + (sync_move.goal_base[3] - sync_move.start[3]) * s );
   slide_ref = clampL(slide_ref, cfg[3].min_limit, cfg[3].max_limit);
   
-  // Compensations en fonction du slide + offsets joystick (toujours actifs)
-  long pan_comp  = panCompFromSlide(slide_ref);
-  long tilt_comp = tiltCompFromSlide(slide_ref);
+  // Compensations follow supprimées (mode obsolète)
   
-  // TODO: Implémenter les offsets correctement
-  long pan_goal  = sync_move.goal_base[0] + pan_comp; // + eff_pan_offset();
-  long tilt_goal = sync_move.goal_base[1] + tilt_comp; // + eff_tilt_offset();
+  // Mouvement direct vers les positions de base
+  long pan_goal  = sync_move.goal_base[0];
+  long tilt_goal = sync_move.goal_base[1];
   long zoom_goal = sync_move.goal_base[2];
   long slide_goal= sync_move.goal_base[3];
   

@@ -17,7 +17,6 @@ long TILT_AT_SLIDE_MIN = DEFAULT_TILT_AT_SLIDE_MIN;
 long TILT_AT_SLIDE_MAX = DEFAULT_TILT_AT_SLIDE_MAX;
 
 //==================== Variables globales ====================
-Follow follow;
 AnchorMorph anchor_morph;
 
 // Les fonctions utilitaires sont définies dans Presets.cpp
@@ -30,12 +29,7 @@ AnchorMorph anchor_morph;
 void initTracking() {
   Serial.println("🎯 Initialisation du système de suivi...");
   
-  // Initialiser les structures
-  follow.enabled = false;
-  follow.valid = false;
-  follow.pan_anchor = 0;
-  follow.tilt_anchor = 0;
-  
+  // Initialiser la structure anchor_morph
   anchor_morph.active = false;
   anchor_morph.p0 = 0;
   anchor_morph.t0 = 0;
@@ -61,62 +55,11 @@ void updateTracking() {
       anchor_morph.active = false; 
     }
     float s = s_minjerk(tau);
-    follow.pan_anchor  = lround( lerp((float)anchor_morph.p0, (float)anchor_morph.p1, s) );
-    follow.tilt_anchor = lround( lerp((float)anchor_morph.t0, (float)anchor_morph.t1, s) );
-    follow.valid = true; // ancres imposées
+    // Note: Les ancres follow ont été supprimées, cette logique n'est plus utilisée
   }
 }
 
-/**
- * @brief Calcule la compensation pan à partir de la position slide
- */
-long panCompFromSlide(long slide) {
-  float u = (float)(slide - cfg[3].min_limit) / (float)(cfg[3].max_limit - cfg[3].min_limit);
-  return (long) lround(lerp(PAN_AT_SLIDE_MIN, PAN_AT_SLIDE_MAX, clampF(u, 0, 1)));
-}
-
-/**
- * @brief Calcule la compensation tilt à partir de la position slide
- */
-long tiltCompFromSlide(long slide) {
-  float u = (float)(slide - cfg[3].min_limit) / (float)(cfg[3].max_limit - cfg[3].min_limit);
-  return (long) lround(lerp(TILT_AT_SLIDE_MIN, TILT_AT_SLIDE_MAX, clampF(u, 0, 1)));
-}
-
-/**
- * @brief Rafraîchit l'ancre de suivi
- */
-void refreshFollowAnchor() {
-  long s = steppers[3]->targetPos();
-  follow.pan_anchor  = steppers[0]->targetPos() - panCompFromSlide(s);
-  follow.tilt_anchor = steppers[1]->targetPos() - tiltCompFromSlide(s);
-  follow.valid = true;
-}
-
-/**
- * @brief Active le mode de suivi
- */
-void startTracking() {
-  follow.enabled = true;
-  follow.valid = false; // Force le rafraîchissement de l'ancre
-  Serial.println("🎯 Suivi activé");
-}
-
-/**
- * @brief Désactive le mode de suivi
- */
-void stopTracking() {
-  follow.enabled = false;
-  follow.valid = false;
-  Serial.println("⏹️ Suivi désactivé");
-}
-
-/**
- * @brief Vérifie si le suivi est activé
- */
-bool isTrackingEnabled() {
-  return follow.enabled;
-}
+// Fonctions follow obsolètes supprimées (panCompFromSlide, tiltCompFromSlide, refreshFollowAnchor, startTracking, stopTracking, isTrackingEnabled)
 
 /**
  * @brief Démarre l'interpolation d'ancre

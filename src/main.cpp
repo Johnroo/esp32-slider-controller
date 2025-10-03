@@ -51,14 +51,7 @@ struct RecallPolicy {
 //==================== Homing Slide (StallGuard) ====================
 // Variables de homing maintenant dans le module Homing.h
 
-// Mode AB infini pour le slide (déprécié - remplacé par interpolation multi-presets)
-struct SlideAB {
-  bool enabled = false;
-  long A = 0, B = 0;       // steps
-  uint32_t T_ms = 4000;    // durée d'un aller
-  uint32_t t0_ms = 0;
-  int dir = +1;            // +1: A->B, -1: B->A
-} slideAB;
+// Mode AB infini pour le slide supprimé (remplacé par interpolation multi-presets)
 
 // Les structures d'interpolation et banques sont maintenant dans le module Presets
 
@@ -129,30 +122,7 @@ void coordinator_tick(){
 
   // Interpolation d'ancre min-jerk pour recall autour de l'autopan
   
-  if (slideAB.enabled && !isSynchronizedMoveActive()){
-    float tau = (float)(now - slideAB.t0_ms) / (float)slideAB.T_ms;
-    if (tau >= 1.0f){ slideAB.dir = -slideAB.dir; slideAB.t0_ms = now; tau = 0.0f; }
-    float s = s_minjerk(tau);
-    long Sgoal = (slideAB.dir > 0)
-                   ? (long)lround(lerp(slideAB.A, slideAB.B, s))
-                   : (long)lround(lerp(slideAB.B, slideAB.A, s));
-    Sgoal = clampL(Sgoal, cfg[3].min_limit, cfg[3].max_limit);
-    steppers[3]->moveTo(Sgoal);
-
-    // Faire suivre Pan/Tilt via la map + offsets joystick
-    if (follow.enabled){
-      if (!follow.valid) refreshFollowAnchor();
-      long pComp = panCompFromSlide(Sgoal);
-      long tComp = tiltCompFromSlide(Sgoal);
-      bool in_recall = isSynchronizedMoveActive() || isAnchorMorphActive();
-      long Pgoal = clampL(follow.pan_anchor  + pComp + getEffectivePanOffset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
-      long Tgoal = clampL(follow.tilt_anchor + tComp + getEffectiveTiltOffset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
-      steppers[0]->moveTo(Pgoal);
-      steppers[1]->moveTo(Tgoal);
-    }
-
-    // Ne plus retourner ici — on laisse la suite traiter le joystick P/T
-  }
+  // Logique slideAB supprimée (remplacée par interpolation multi-presets)
 
   // 2) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
   if (!isSynchronizedMoveActive()){
@@ -221,29 +191,12 @@ void coordinator_tick(){
       steppers[1]->moveTo(t);
     }
     
-    // Jog Slide (+ follow map for Pan/Tilt) - bloqué pendant AB
-    if (!slideAB.enabled && isSlideActive()){
+    // Jog Slide
+    if (isSlideActive()){
       long s = steppers[3]->targetPos();
       long Sgoal = clampL(s + (long)lround(slide_jog_cmd * SLIDE_JOG_SPEED * dt),
                           cfg[3].min_limit, cfg[3].max_limit);
       steppers[3]->moveTo(Sgoal);
-
-      // Faire suivre Pan/Tilt via la map slide->pan/tilt
-      if (follow.enabled) {
-        if (!follow.valid) refreshFollowAnchor();
-        long pComp = panCompFromSlide(Sgoal);
-        long tComp = tiltCompFromSlide(Sgoal);
-        bool in_recall = isSynchronizedMoveActive() || isAnchorMorphActive();
-        long Pgoal = clampL(follow.pan_anchor  + pComp + getEffectivePanOffset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
-        long Tgoal = clampL(follow.tilt_anchor + tComp + getEffectiveTiltOffset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
-        
-        // Ne PAS écraser un axe si le joystick le pilote déjà
-        bool joyP = isPanActive();
-        bool joyT = isTiltActive();
-        
-        if (!joyP) steppers[0]->moveTo(Pgoal);
-        if (!joyT) steppers[1]->moveTo(Tgoal);
-      }
     }
   }
 
@@ -357,34 +310,9 @@ void processOSC() {
       });
       
       // Configuration du suivi Pan/Tilt ↔ Slide
-      msg.dispatch("/follow/en", [](OSCMessage &m){
-        if (m.getInt(0) != 0) {
-          startTracking();
-        } else {
-          stopTracking();
-        }
-        Serial.printf("🎯 Follow mapping on jog: %s\n", isTrackingEnabled() ? "ON" : "OFF");
-      });
+      // Route /follow/en supprimée (mode follow obsolète)
       
-      // Mode AB infini pour le slide (déprécié)
-      msg.dispatch("/slide/ab", [](OSCMessage &m){
-        slideAB.enabled = m.getInt(0) != 0;
-        slideAB.t0_ms = millis();
-        follow.valid = false; // re-anchor au démarrage
-        Serial.printf("♾️ Slide AB %s\n", slideAB.enabled ? "ON" : "OFF");
-      });
-      
-      msg.dispatch("/slide/ab/set", [](OSCMessage &m){
-        float uA = clampF(m.getFloat(0), 0.f, 1.f);
-        float uB = clampF(m.getFloat(1), 0.f, 1.f);
-        float T  = fabsf(m.getFloat(2)); if (T <= 0) T = 2.f;
-        slideAB.A    = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, uA));
-        slideAB.B    = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, uB));
-        slideAB.T_ms = (uint32_t)lround(T * 1000.f);
-        slideAB.t0_ms= millis();
-        slideAB.dir  = +1;
-        Serial.printf("AB set A=%ld B=%ld T=%u ms\n", slideAB.A, slideAB.B, slideAB.T_ms);
-      });
+      // Routes /slide/ab et /slide/ab/set supprimées (mode slideAB obsolète)
       
       //==================== Routes OSC pour interpolation multi-presets ====================
       msg.dispatch("/interp/setpoints", [](OSCMessage &m){
@@ -417,9 +345,7 @@ void processOSC() {
           interpAuto.active = true;
           
           // Désactiver modes concurrents
-          slideAB.enabled = false;
           stopSynchronizedMove();
-          follow.valid = false;
           
           Serial.printf("▶️ Interpolation auto ON (T=%u ms, %.1fs)\n", T_ms, duration);
         } else {
@@ -434,7 +360,6 @@ void processOSC() {
         // Annuler modes auto
         interpAuto.active = false;
         stopSynchronizedMove();
-        slideAB.enabled = false;
         
         // Calculer position interpolée
         long P, T, Z, S;
@@ -456,8 +381,6 @@ void processOSC() {
         // Annuler les mouvements automatiques ou presets en cours
         interpAuto.active = false;
         stopSynchronizedMove();
-        slideAB.enabled = false;
-        follow.valid = false;
         
         // Appliquer la nouvelle consigne de vitesse de l'axe d'interpolation
         interp_jog_cmd = value;
@@ -703,8 +626,7 @@ void processOSC() {
         long T = steppers[1]->getCurrentPosition();
         long Z = steppers[2]->getCurrentPosition();
 
-        long pComp = panCompFromSlide(S);
-        long tComp = tiltCompFromSlide(S);
+        // Calculs de compensation follow supprimés (mode obsolète)
 
         presets[i].p = P; presets[i].t = T; presets[i].z = Z; presets[i].s = S;
 
@@ -765,12 +687,7 @@ void processOSC() {
       msg.dispatch("/config/offset_range", [](OSCMessage &m){
         setOffsetRanges(m.getInt(0), m.getInt(1));
       });
-      msg.dispatch("/config/pan_map", [](OSCMessage &m){
-        setPanMapping(m.getInt(0), m.getInt(1));
-      });
-      msg.dispatch("/config/tilt_map", [](OSCMessage &m){
-        setTiltMapping(m.getInt(0), m.getInt(1));
-      });
+      // Routes /config/pan_map et /config/tilt_map supprimées (mode follow obsolète)
       
       //==================== NEW: Routes OSC pour offsets latched ====================
       msg.dispatch("/offset/zero", [](OSCMessage &m){
@@ -837,8 +754,7 @@ void setup() {
   Serial.println("📂 Banque 0 chargée au démarrage");
   
   // Désactiver les anciens modes par défaut
-  follow.enabled = false;
-  slideAB.enabled = false;
+  // Modes follow et slideAB supprimés (obsolètes)
   
   // Initialiser la configuration globale
   initConfig();
