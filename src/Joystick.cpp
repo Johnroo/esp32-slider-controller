@@ -93,8 +93,8 @@ void updateJoystick() {
   // Intégration des offsets joystick (comportement "latched")
   if (isSynchronizedMoveActive() || isSlideActive()) {
     // Vitesse d'empilement en steps/s à |joy|=1 (30% de la Vmax de l'axe)
-    const float PAN_OFFSET_RATE  = cfg[0].max_speed * 0.3f;  // steps/s
-    const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.3f;  // steps/s
+    const float PAN_OFFSET_RATE  = cfg[0].max_speed * 0.7f;  // steps/s
+    const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.7f;  // steps/s
     
     long d_pan  = lroundf(joy_filt.pan  * PAN_OFFSET_RATE  * dt);
     long d_tilt = lroundf(joy_filt.tilt * TILT_OFFSET_RATE * dt);

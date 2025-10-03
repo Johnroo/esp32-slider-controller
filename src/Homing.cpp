@@ -8,7 +8,7 @@
 #include "Homing.h"
 
 //==================== Variables globales ====================
-bool doAutoHomeSlide = true;     // lancer automatiquement au démarrage si true
+bool doAutoHomeSlide = false;     // lancer automatiquement au démarrage si true
 bool homingInProgress = false;    // flag pour éviter les homing multiples
 
 //==================== Fonctions du module ====================

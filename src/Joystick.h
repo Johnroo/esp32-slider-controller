@@ -20,7 +20,7 @@ struct JoyCfg {
   float expo = 0.35f;
   float slew_per_s = 8000.0f;
   float filt_hz = 60.0f;
-  float pan_tilt_speed = 1.0f;
+  float pan_tilt_speed = 6.0f;
   float slide_speed = 1.0f;
 };
 
