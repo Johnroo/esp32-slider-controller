@@ -13,16 +13,12 @@
 #include <Preferences.h>
 #include "MotorControl.h"
 #include "Homing.h"
+#include "Presets.h"
 
 //==================== Configuration ====================
 
 //==================== NEW: Presets, offsets, mapping ====================
-struct Preset {
-  long p, t, z, s;          // positions absolues
-};
-
-Preset presets[8];         // utilitaires: /preset/set i p t z s
-int activePreset = -1;
+// Les structures Preset et variables sont maintenant dans le module Presets
 
 // Offsets joystick (en steps)
 volatile long pan_offset_steps  = 0;
@@ -109,39 +105,13 @@ struct SlideAB {
   int dir = +1;            // +1: A->B, -1: B->A
 } slideAB;
 
-// Axe d'interpolation multi-presets (nouveau système)
-struct InterpPoint { 
-  uint8_t presetIndex; 
-  float fraction; 
-};
-
-InterpPoint interpPoints[6];  // jusqu'à 6 points (A, B, C, D, E, F)
-uint8_t interpCount = 2;      // par défaut 2 points (A@0%, B@100%)
-
-//==================== Bank System ====================
-struct Bank {
-  Preset presets[8];
-  InterpPoint interpPoints[6];
-  uint8_t interpCount;
-};
-
-Bank banks[10];              // 10 banques de presets
-uint8_t activeBank = 0;      // banque active (0-9)
-Preferences nvs;             // pour la persistance NVS
-
-struct InterpAuto {
-  bool active = false;
-  uint32_t t0_ms = 0;
-  uint32_t T_ms = 5000;   // durée du parcours 0->100%
-  int dir = +1;           // sens courant (+1 = 0→100%, -1 = 100%→0%)
-} interpAuto;
+// Les structures d'interpolation et banques sont maintenant dans le module Presets
 
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
 float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
 
-// Jog interpolation manuel
-float interp_jog_cmd = 0.0f;    // -1..+1 (vitesse normalisée)
+// La variable interp_jog_cmd est maintenant dans le module Presets
 
 // Jog Pan/Tilt (vitesses de jog) - dérivées de la config
 float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
@@ -266,127 +236,9 @@ uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long go
 }
 
 //==================== Bank Management Functions ====================
-void saveBank(uint8_t idx) {
-  if (idx >= 10) return;
-  
-  // Copier les variables globales vers la structure Bank
-  for (int i = 0; i < 8; i++) {
-    banks[idx].presets[i] = presets[i];
-  }
-  for (int i = 0; i < 6; i++) {
-    banks[idx].interpPoints[i] = interpPoints[i];
-  }
-  banks[idx].interpCount = interpCount;
-  
-  // Initialiser NVS
-  if (!nvs.begin("banks")) {
-    Serial.println("❌ Erreur NVS");
-    return;
-  }
-  
-  // Créer le JSON
-  DynamicJsonDocument doc(4096);
-  JsonArray presetsArray = doc.createNestedArray("presets");
-  JsonArray interpArray = doc.createNestedArray("interp");
-  
-  // Sérialiser les presets
-  for (int i = 0; i < 8; i++) {
-    JsonObject preset = presetsArray.createNestedObject();
-    preset["p"] = banks[idx].presets[i].p;
-    preset["t"] = banks[idx].presets[i].t;
-    preset["z"] = banks[idx].presets[i].z;
-    preset["s"] = banks[idx].presets[i].s;
-  }
-  
-  // Sérialiser l'interpolation
-  for (int i = 0; i < banks[idx].interpCount; i++) {
-    JsonObject interp = interpArray.createNestedObject();
-    interp["presetIndex"] = banks[idx].interpPoints[i].presetIndex;
-    interp["fraction"] = banks[idx].interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
-  }
-  doc["interpCount"] = banks[idx].interpCount;
-  
-  // Sérialiser en string
-  String jsonString;
-  serializeJson(doc, jsonString);
-  
-  // Sauvegarder en NVS
-  String key = "bank" + String(idx);
-  nvs.putString(key.c_str(), jsonString);
-  nvs.end();
-  
-  Serial.printf("💾 Banque %d sauvegardée (%d presets, %d points interp)\n", idx, 8, banks[idx].interpCount);
-}
+// La fonction saveBank est maintenant dans le module Presets
 
-void loadBank(uint8_t idx) {
-  if (idx >= 10) return;
-  
-  // Initialiser NVS
-  if (!nvs.begin("banks")) {
-    Serial.println("❌ Erreur NVS");
-    return;
-  }
-  
-  String key = "bank" + String(idx);
-  String jsonString = nvs.getString(key.c_str());
-  nvs.end();
-  
-  if (jsonString.length() == 0) {
-    Serial.printf("⚠️ Banque %d vide, initialisation par défaut\n", idx);
-    // Initialiser avec des valeurs par défaut
-    for (int i = 0; i < 8; i++) {
-      banks[idx].presets[i] = {0, 0, 0, 0};
-      presets[i] = banks[idx].presets[i];
-    }
-    banks[idx].interpPoints[0] = {0, 0.0f};
-    banks[idx].interpPoints[1] = {1, 1.0f};
-    banks[idx].interpCount = 2;
-    interpPoints[0] = banks[idx].interpPoints[0];
-    interpPoints[1] = banks[idx].interpPoints[1];
-    interpCount = banks[idx].interpCount;
-    return;
-  }
-  
-  // Parser le JSON
-  DynamicJsonDocument doc(4096);
-  DeserializationError error = deserializeJson(doc, jsonString);
-  if (error) {
-    Serial.printf("❌ Erreur JSON banque %d: %s\n", idx, error.c_str());
-    return;
-  }
-  
-  // Charger les presets dans la structure Bank ET les variables globales
-  JsonArray presetsArray = doc["presets"];
-  for (int i = 0; i < 8 && i < presetsArray.size(); i++) {
-    JsonObject preset = presetsArray[i];
-    banks[idx].presets[i].p = preset["p"];
-    banks[idx].presets[i].t = preset["t"];
-    banks[idx].presets[i].z = preset["z"];
-    banks[idx].presets[i].s = preset["s"];
-    // Ignorer gracieusement les anciens champs mode, pan_anchor et tilt_anchor s'ils existent
-    
-    // Copier vers les variables globales
-    presets[i] = banks[idx].presets[i];
-  }
-  
-  // Charger l'interpolation dans la structure Bank ET les variables globales
-  JsonArray interpArray = doc["interp"];
-  banks[idx].interpCount = min((int)interpArray.size(), 6);
-  for (int i = 0; i < banks[idx].interpCount; i++) {
-    JsonObject interp = interpArray[i];
-    banks[idx].interpPoints[i].presetIndex = interp["presetIndex"];
-    banks[idx].interpPoints[i].fraction = interp["fraction"].as<float>() / 100.0f; // Convertir depuis pourcentage
-    
-    // Copier vers les variables globales
-    interpPoints[i] = banks[idx].interpPoints[i];
-  }
-  interpCount = banks[idx].interpCount;
-  
-  // Appliquer automatiquement les points d'interpolation (comme si l'utilisateur avait cliqué "Apply")
-  // Les points sont déjà chargés dans interpPoints[] et interpCount, l'axe d'interpolation est actif
-  
-  Serial.printf("📂 Banque %d chargée (%d presets, %d points interp) - Axe d'interpolation activé\n", idx, 8, interpCount);
-}
+// La fonction loadBank est maintenant dans le module Presets
 
 void saveActiveBank() {
   saveBank(activeBank);
@@ -414,40 +266,7 @@ static inline void follow_refresh_anchor() {
   follow.valid = true;
 }
 
-//==================== Interpolation multi-presets ====================
-void computeInterpolatedPosition(float u, long &P, long &T, long &Z, long &S) {
-  // Bornes : si en-dessous du premier point ou au-delà du dernier
-  if (u <= interpPoints[0].fraction) {
-    uint8_t idx = interpPoints[0].presetIndex;
-    P = presets[idx].p;  T = presets[idx].t;
-    Z = presets[idx].z;  S = presets[idx].s;
-    return;
-  }
-  if (u >= interpPoints[interpCount-1].fraction) {
-    uint8_t idx = interpPoints[interpCount-1].presetIndex;
-    P = presets[idx].p;  T = presets[idx].t;
-    Z = presets[idx].z;  S = presets[idx].s;
-    return;
-  }
-  
-  // Trouver le segment [j, j+1] contenant u
-  uint8_t j = 0;
-  while (j < interpCount-1 && interpPoints[j+1].fraction < u) { j++; }
-  
-  // Interpolation linéaire entre point j et j+1
-  float u0 = interpPoints[j].fraction;
-  float u1 = interpPoints[j+1].fraction;
-  float alpha = (u - u0) / (u1 - u0);  // fraction relative entre ces deux points
-  
-  uint8_t presetA = interpPoints[j].presetIndex;
-  uint8_t presetB = interpPoints[j+1].presetIndex;
-  
-  // Interpolation linéaire des axes
-  P = lround( lerp((float)presets[presetA].p, (float)presets[presetB].p, alpha) );
-  T = lround( lerp((float)presets[presetA].t, (float)presets[presetB].t, alpha) );
-  Z = lround( lerp((float)presets[presetA].z, (float)presets[presetB].z, alpha) );
-  S = lround( lerp((float)presets[presetA].s, (float)presets[presetB].s, alpha) );
-}
+// Les fonctions d'interpolation sont maintenant dans le module Presets
 
 //==================== NEW: Tick de coordination ====================
 void coordinator_tick(){
@@ -458,31 +277,7 @@ void coordinator_tick(){
   last_ms = now;
 
   // Mode interpolation automatique multi-presets (prioritaire)
-  if (interpAuto.active) {
-    float tau = (float)(now - interpAuto.t0_ms) / (float)interpAuto.T_ms;
-    if (tau >= 1.0f) {
-      tau = 0.0f;
-      interpAuto.t0_ms = now;
-      // Inversion de direction pour boucle continue
-      interpAuto.dir = (interpAuto.dir > 0 ? -1 : +1);
-    }
-    
-    // Profil minimum-jerk pour un mouvement fluide aller/retour
-    float s = s_minjerk(tau);
-    float u = (interpAuto.dir > 0 ? s : (1.0f - s));
-    
-    // Calculer la position interpolée pour tous les axes
-    long P, T, Z, S;
-    computeInterpolatedPosition(u, P, T, Z, S);
-    
-    // Envoyer aux moteurs
-    steppers[0]->moveTo(P);
-    steppers[1]->moveTo(T);
-    steppers[2]->moveTo(Z);
-    steppers[3]->moveTo(S);
-    
-    return;  // ignore les autres modes pendant l'interpolation auto
-  }
+  updateInterpolation();
 
   // Interpolation d'ancre min-jerk pour recall autour de l'autopan
   if (anchor_morph.active) {
@@ -1394,6 +1189,9 @@ void setup() {
   
   // Initialiser le système de homing
   initHoming();
+  
+  // Initialiser le système de presets
+  initPresets();
   
   // WiFi Manager
   WiFiManager wm;
