@@ -99,11 +99,12 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 //==================== Configuration du joystick ====================
 
 // Ranges d'offsets par défaut
-#define DEFAULT_PAN_OFFSET_RANGE  800
-#define DEFAULT_TILT_OFFSET_RANGE 800
+// Plages de slew limiting pour le filtrage joystick (plus grande = réponse plus rapide)
+#define DEFAULT_PAN_SLEW_RANGE  800
+#define DEFAULT_TILT_SLEW_RANGE 800
 
 // Vitesses de jog par défaut (steps/s)
-#define DEFAULT_PAN_JOG_SPEED   3000.0f
+#define DEFAULT_PAN_JOG_SPEED   18000.0f
 #define DEFAULT_TILT_JOG_SPEED  3000.0f
 #define DEFAULT_SLIDE_JOG_SPEED 6000.0f
 
@@ -112,7 +113,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 #define DEFAULT_JOYSTICK_EXPO         0.35f
 #define DEFAULT_JOYSTICK_SLEW_PER_S   8000.0f
 #define DEFAULT_JOYSTICK_FILT_HZ      60.0f
-#define DEFAULT_JOYSTICK_PAN_TILT_SPEED 1.0f
+#define DEFAULT_JOYSTICK_PAN_TILT_SPEED 3.0f
 #define DEFAULT_JOYSTICK_SLIDE_SPEED    1.0f
 
 // Anti-bruit pour les offsets

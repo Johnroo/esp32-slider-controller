@@ -10,8 +10,8 @@
 //==================== Variables globales configurables ====================
 
 // Ranges d'offsets (modifiables via OSC)
-long PAN_OFFSET_RANGE = DEFAULT_PAN_OFFSET_RANGE;
-long TILT_OFFSET_RANGE = DEFAULT_TILT_OFFSET_RANGE;
+long PAN_OFFSET_RANGE = DEFAULT_PAN_SLEW_RANGE;
+long TILT_OFFSET_RANGE = DEFAULT_TILT_SLEW_RANGE;
 
 // Vitesses de jog (calculées dans setup)
 float PAN_JOG_SPEED = DEFAULT_PAN_JOG_SPEED;
@@ -37,8 +37,8 @@ void initConfig() {
   Serial.println("⚙️ Initialisation de la configuration...");
   
   // Initialiser les ranges d'offsets
-  PAN_OFFSET_RANGE = DEFAULT_PAN_OFFSET_RANGE;
-  TILT_OFFSET_RANGE = DEFAULT_TILT_OFFSET_RANGE;
+  PAN_OFFSET_RANGE = DEFAULT_PAN_SLEW_RANGE;
+  TILT_OFFSET_RANGE = DEFAULT_TILT_SLEW_RANGE;
   
   // Initialiser les vitesses de jog
   PAN_JOG_SPEED = DEFAULT_PAN_JOG_SPEED;
