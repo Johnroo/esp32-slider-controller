@@ -14,8 +14,8 @@
 //==================== Configuration Homing ====================
 #define SLIDE_INDEX     3
 #define HOMING_SPEED    9000     // steps/s (2000-4000 range pour SG4)
-#define HOMING_ACCEL    90000    // accel élevée pour atteindre vitesse rapidement
-#define SG_DETECT       100      // seuil SG_RESULT pour détecter stall (commencer à ~100)
+#define HOMING_ACCEL    20000    // accel élevée pour atteindre vitesse rapidement
+#define SG_DETECT       200      // seuil SG_RESULT pour détecter stall (commencer à ~100)
 #define HOMING_TIMEOUT  20000    // ms
 #define BACKOFF_STEPS   300      // pas de recul après détection
 

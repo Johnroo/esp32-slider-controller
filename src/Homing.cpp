@@ -8,7 +8,7 @@
 #include "Homing.h"
 
 //==================== Variables globales ====================
-bool doAutoHomeSlide = true;     // lancer automatiquement au démarrage si true
+bool doAutoHomeSlide = false;     // lancer automatiquement au démarrage si true
 uint8_t slide_sg_threshold = 100; // SGTHRS par défaut (sensibilité moyenne)
 
 //==================== Fonctions du module ====================
@@ -55,7 +55,7 @@ void homeSlide() {
   steppers[i]->setAcceleration(HOMING_ACCEL);
   
   // Réduire le courant pour éviter les dégâts en cas de collision
-  drivers[i]->rms_current(1800); // boost à 1800mA pour le homing
+  drivers[i]->rms_current(2000); // boost à 1800mA pour le homing
   
   Serial.printf("🔧 Configuration homing: vitesse=%d, accel=%d, courant=800mA\n", 
                 HOMING_SPEED, HOMING_ACCEL);
@@ -155,6 +155,10 @@ void homeSlide() {
   steppers[i]->setSpeedInHz(cfg[i].max_speed);
   steppers[i]->setAcceleration(cfg[i].max_accel);
   drivers[i]->rms_current(cfg[i].current_ma);
+  
+  // IMPORTANT: Restaurer SpreadCycle pour un meilleur fonctionnement du slider
+  drivers[i]->en_spreadCycle(true);  // SpreadCycle pour le fonctionnement normal
+  Serial.println("🔄 Mode SpreadCycle restauré pour le fonctionnement normal");
   
   Serial.println("🏠 HOMING SLIDE COMPLETED");
 }
