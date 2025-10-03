@@ -11,11 +11,9 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include "Config.h"
 
-//==================== Constantes ====================
-#define MAX_PRESETS 8
-#define MAX_INTERP_POINTS 6
-#define MAX_BANKS 10
+// Les constantes des presets sont maintenant dans le module Config
 
 //==================== Structures de données ====================
 struct Preset {

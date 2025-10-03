@@ -15,28 +15,9 @@
 #include <Arduino.h>
 #include <FastAccelStepper.h>
 #include <TMCStepper.h>
+#include "Config.h"
 
-//==================== Configuration ====================
-#define NUM_MOTORS 4
-
-//==================== Pins Hardware ====================
-// Pins STEP/DIR/EN
-extern const int STEP_PINS[NUM_MOTORS];
-extern const int DIR_PINS[NUM_MOTORS];
-extern const int ENABLE_PINS[NUM_MOTORS];
-
-// UART TMC2209
-#define UART_TX 17
-#define UART_RX 16
-
-// Adresses TMC2209
-#define ADDR_PAN  0
-#define ADDR_TILT 1
-#define ADDR_ZOOM 2
-#define ADDR_SLIDE 3
-
-// R_SENSE pour TMC2209
-#define R_SENSE 0.11f
+// Les constantes de configuration sont maintenant dans le module Config
 
 //==================== Configuration des moteurs ====================
 struct MotorConfig {

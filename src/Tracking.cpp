@@ -10,10 +10,11 @@
 #include "Utils.h"
 
 //==================== Constantes de configuration ====================
-long PAN_AT_SLIDE_MIN  = +800;  // ex: +800 à gauche
-long PAN_AT_SLIDE_MAX  = -800;  // ex: -800 à droite
-long TILT_AT_SLIDE_MIN = 0;
-long TILT_AT_SLIDE_MAX = 0;
+// Utilise les constantes par défaut du module Config
+long PAN_AT_SLIDE_MIN  = DEFAULT_PAN_AT_SLIDE_MIN;
+long PAN_AT_SLIDE_MAX  = DEFAULT_PAN_AT_SLIDE_MAX;
+long TILT_AT_SLIDE_MIN = DEFAULT_TILT_AT_SLIDE_MIN;
+long TILT_AT_SLIDE_MAX = DEFAULT_TILT_AT_SLIDE_MAX;
 
 //==================== Variables globales ====================
 Follow follow;

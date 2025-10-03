@@ -27,14 +27,7 @@ volatile long tilt_offset_steps = 0;
 volatile long pan_offset_latched = 0;
 volatile long tilt_offset_latched = 0;
 
-// Ranges d'offsets (configurables)
-long PAN_OFFSET_RANGE = DEFAULT_PAN_OFFSET_RANGE;
-long TILT_OFFSET_RANGE = DEFAULT_TILT_OFFSET_RANGE;
-
-// Vitesses de jog (calculées dans setup)
-float PAN_JOG_SPEED = 3000.0f;
-float TILT_JOG_SPEED = 3000.0f;
-float SLIDE_JOG_SPEED = 6000.0f;
+// Les variables globales sont maintenant dans le module Config
 
 // Jog slide
 float slide_jog_cmd = 0.0f;    // -1..+1
@@ -256,39 +249,8 @@ void setCancelPolicy(const CancelPolicy& policy) {
   cancel = policy;
 }
 
-/**
- * @brief Obtient les ranges d'offsets
- */
-void getOffsetRanges(long &pan, long &tilt) {
-  pan = PAN_OFFSET_RANGE;
-  tilt = TILT_OFFSET_RANGE;
-}
-
-/**
- * @brief Définit les ranges d'offsets
- */
-void setOffsetRanges(long pan, long tilt) {
-  PAN_OFFSET_RANGE = pan;
-  TILT_OFFSET_RANGE = tilt;
-}
-
-/**
- * @brief Obtient les vitesses de jog
- */
-void getJogSpeeds(float &pan, float &tilt, float &slide) {
-  pan = PAN_JOG_SPEED;
-  tilt = TILT_JOG_SPEED;
-  slide = SLIDE_JOG_SPEED;
-}
-
-/**
- * @brief Définit les vitesses de jog
- */
-void setJogSpeeds(float pan, float tilt, float slide) {
-  PAN_JOG_SPEED = pan;
-  TILT_JOG_SPEED = tilt;
-  SLIDE_JOG_SPEED = slide;
-}
+// Les fonctions getOffsetRanges, setOffsetRanges, getJogSpeeds, setJogSpeeds 
+// sont maintenant dans le module Config
 
 /**
  * @brief Vérifie si le joystick pan est actif

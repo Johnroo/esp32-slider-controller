@@ -235,17 +235,5 @@ void getTargetPositions(long positions[NUM_MOTORS]) {
   }
 }
 
-/**
- * @brief Définit la durée par défaut pour les mouvements synchronisés
- */
-void setDefaultMoveDuration(uint32_t durationMs) {
-  defaultMoveDuration = durationMs;
-  Serial.printf("⏱️ Durée par défaut définie: %u ms\n", durationMs);
-}
-
-/**
- * @brief Obtient la durée par défaut pour les mouvements synchronisés
- */
-uint32_t getDefaultMoveDuration() {
-  return defaultMoveDuration;
-}
+// Les fonctions setDefaultMoveDuration et getDefaultMoveDuration 
+// sont maintenant dans le module Config

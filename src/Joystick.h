@@ -10,11 +10,9 @@
 
 #include <Arduino.h>
 #include "Utils.h"
+#include "Config.h"
 
-//==================== Constantes ====================
-// Ranges d'offsets (configurables via OSC)
-#define DEFAULT_PAN_OFFSET_RANGE  800
-#define DEFAULT_TILT_OFFSET_RANGE 800
+// Les constantes du joystick sont maintenant dans le module Config
 
 //==================== Structures de données ====================
 struct JoyCfg { 
@@ -59,14 +57,7 @@ extern volatile long tilt_offset_steps;
 extern volatile long pan_offset_latched;
 extern volatile long tilt_offset_latched;
 
-// Ranges d'offsets (configurables)
-extern long PAN_OFFSET_RANGE;
-extern long TILT_OFFSET_RANGE;
-
-// Vitesses de jog (calculées dans setup)
-extern float PAN_JOG_SPEED;
-extern float TILT_JOG_SPEED;
-extern float SLIDE_JOG_SPEED;
+// Les variables globales sont maintenant dans le module Config
 
 // Jog slide
 extern float slide_jog_cmd;    // -1..+1
@@ -206,35 +197,7 @@ CancelPolicy& getCancelPolicy();
  */
 void setCancelPolicy(const CancelPolicy& policy);
 
-/**
- * @brief Obtient les ranges d'offsets
- * @param pan Référence pour le range pan
- * @param tilt Référence pour le range tilt
- */
-void getOffsetRanges(long &pan, long &tilt);
-
-/**
- * @brief Définit les ranges d'offsets
- * @param pan Range pan
- * @param tilt Range tilt
- */
-void setOffsetRanges(long pan, long tilt);
-
-/**
- * @brief Obtient les vitesses de jog
- * @param pan Référence pour la vitesse pan
- * @param tilt Référence pour la vitesse tilt
- * @param slide Référence pour la vitesse slide
- */
-void getJogSpeeds(float &pan, float &tilt, float &slide);
-
-/**
- * @brief Définit les vitesses de jog
- * @param pan Vitesse pan
- * @param tilt Vitesse tilt
- * @param slide Vitesse slide
- */
-void setJogSpeeds(float pan, float tilt, float slide);
+// Les fonctions de gestion des ranges et vitesses sont maintenant dans le module Config
 
 /**
  * @brief Vérifie si le joystick pan est actif

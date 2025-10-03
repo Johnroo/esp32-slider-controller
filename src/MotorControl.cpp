@@ -5,22 +5,18 @@
 
 #include "MotorControl.h"
 
-//==================== Pins Hardware ====================
-// Pins STEP/DIR/EN
-const int STEP_PINS[NUM_MOTORS]    = {18, 21, 23, 26};
-const int DIR_PINS[NUM_MOTORS]     = {19, 22, 25, 27};
-const int ENABLE_PINS[NUM_MOTORS]  = {13, 14, 32, 33};
+// Les pins sont maintenant définies dans le module Config
 
 //==================== Configuration des moteurs ====================
 MotorConfig cfg[NUM_MOTORS] = {
-  // PAN: {-27106, 27106, 1200, 16, 20000, 12000, 0, false, false, true}
-  {20000, 12000, -27106, 27106, 1200, 16, true, 100},
-  // TILT: {-2439, 2439, 1200, 16, 20000, 12000, 0, false, false, true}
-  {20000, 12000, -2439, 2439, 1200, 16, true, 100},
-  // ZOOM: {-20000, 20000, 400, 16, 20000, 8000, 0, false, false, true}
-  {20000, 8000, -20000, 20000, 400, 16, true, 100},
-  // SLIDE: {-20000, 20000, 1800, 8, 10000, 12000, 0, false, false, true}
-  {9000, 12000, -20000, 20000, 1800, 8, true, 100}
+  // PAN
+  {DEFAULT_PAN_MAX_SPEED, DEFAULT_PAN_ACCEL, DEFAULT_PAN_MIN_LIMIT, DEFAULT_PAN_MAX_LIMIT, DEFAULT_PAN_CURRENT, DEFAULT_PAN_MICROSTEPS, true, 100},
+  // TILT
+  {DEFAULT_TILT_MAX_SPEED, DEFAULT_TILT_ACCEL, DEFAULT_TILT_MIN_LIMIT, DEFAULT_TILT_MAX_LIMIT, DEFAULT_TILT_CURRENT, DEFAULT_TILT_MICROSTEPS, true, 100},
+  // ZOOM
+  {DEFAULT_ZOOM_MAX_SPEED, DEFAULT_ZOOM_ACCEL, DEFAULT_ZOOM_MIN_LIMIT, DEFAULT_ZOOM_MAX_LIMIT, DEFAULT_ZOOM_CURRENT, DEFAULT_ZOOM_MICROSTEPS, true, 100},
+  // SLIDE
+  {DEFAULT_SLIDE_MAX_SPEED, DEFAULT_SLIDE_ACCEL, DEFAULT_SLIDE_MIN_LIMIT, DEFAULT_SLIDE_MAX_LIMIT, DEFAULT_SLIDE_CURRENT, DEFAULT_SLIDE_MICROSTEPS, true, 100}
 };
 
 //==================== Objets moteurs ====================

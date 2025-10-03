@@ -18,6 +18,7 @@
 #include "MotionPlanner.h"
 #include "Joystick.h"
 #include "Utils.h"
+#include "Config.h"
 
 //==================== Configuration ====================
 
@@ -26,8 +27,7 @@
 
 // Les variables d'offsets et structures sont maintenant dans le module Joystick
 
-const long OFFSET_DEADBAND_STEPS = 2; // anti-bruit
-static inline long odband(long v){ return (labs(v) <= OFFSET_DEADBAND_STEPS) ? 0 : v; }
+// Les constantes sont maintenant dans le module Config
 
 // Les fonctions d'offsets sont maintenant dans le module Joystick
 
@@ -254,7 +254,7 @@ void coordinator_tick(){
 //==================== OSC ====================
 WiFiUDP udp;
 OSCErrorCode error;
-const int OSC_PORT = 8000;
+// Port OSC défini dans Config.h
 
 //==================== Web Server ====================
 AsyncWebServer webServer(80);
@@ -971,6 +971,9 @@ void setup() {
   // Désactiver les anciens modes par défaut
   follow.enabled = false;
   slideAB.enabled = false;
+  
+  // Initialiser la configuration globale
+  initConfig();
   
   // Initialiser les moteurs via le module MotorControl
   initMotors();

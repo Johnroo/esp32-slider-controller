@@ -10,9 +10,9 @@
 
 #include <Arduino.h>
 #include "Utils.h"
+#include "Config.h"
 
-//==================== Constantes ====================
-#define NUM_MOTORS 4
+// Les constantes sont maintenant dans le module Config
 
 //==================== Structures de données ====================
 struct SyncMove {
@@ -104,16 +104,7 @@ void getStartPositions(long positions[NUM_MOTORS]);
  */
 void getTargetPositions(long positions[NUM_MOTORS]);
 
-/**
- * @brief Définit la durée par défaut pour les mouvements synchronisés
- * @param durationMs Durée en millisecondes
- */
-void setDefaultMoveDuration(uint32_t durationMs);
-
-/**
- * @brief Obtient la durée par défaut pour les mouvements synchronisés
- * @return Durée en millisecondes
- */
-uint32_t getDefaultMoveDuration();
+// Les fonctions setDefaultMoveDuration et getDefaultMoveDuration 
+// sont maintenant dans le module Config
 
 #endif // MOTIONPLANNER_H

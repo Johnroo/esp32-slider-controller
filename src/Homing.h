@@ -10,16 +10,9 @@
 
 #include <Arduino.h>
 #include "MotorControl.h"
+#include "Config.h"
 
-//==================== Configuration Homing ====================
-#define SLIDE_INDEX     3
-#define HOMING_SPEED    9000     // steps/s (2000-4000 range pour SG4)
-#define HOMING_ACCEL    60000    // accel élevée pour atteindre vitesse rapidement
-#define SG_DETECT       20      // seuil SG_RESULT pour détecter stall (commencer à ~100)
-#define HOMING_TIMEOUT  20000    // ms
-#define BACKOFF_STEPS   1000     // pas de recul après détection (augmenté pour éviter les sauts)
-#define BACKOFF_DELAY   500      // ms de délai après recul pour stabilisation
-#define SAFETY_STEPS   500      // marge de sécurité à l'intérieur des butées (pas)
+// Les constantes de homing sont maintenant dans le module Config
 
 //==================== Variables globales ====================
 extern bool doAutoHomeSlide;     // lancer automatiquement au démarrage si true

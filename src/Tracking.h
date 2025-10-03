@@ -9,6 +9,7 @@
 #define TRACKING_H
 
 #include <Arduino.h>
+#include "Config.h"
 
 //==================== Constantes de configuration ====================
 // Mapping linéaire slide -> compensation pan/tilt (en steps)
