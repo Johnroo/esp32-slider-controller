@@ -178,16 +178,14 @@ void coordinator_tick(){
     // Jog Pan
     if (isPanActive()) {
       long p = steppers[0]->targetPos();
-      float pan_speed = PAN_JOG_SPEED * joy.pan_tilt_speed;
-      p = clampL(p + (long)lround(joy_filt.pan * pan_speed * dt), cfg[0].min_limit, cfg[0].max_limit);
+      p = clampL(p + (long)lround(joy_filt.pan * PAN_JOG_SPEED * dt), cfg[0].min_limit, cfg[0].max_limit);
       steppers[0]->moveTo(p);
     }
     
     // Jog Tilt
     if (isTiltActive()) {
       long t = steppers[1]->targetPos();
-      float tilt_speed = TILT_JOG_SPEED * joy.pan_tilt_speed;
-      t = clampL(t + (long)lround(joy_filt.tilt * tilt_speed * dt), cfg[1].min_limit, cfg[1].max_limit);
+      t = clampL(t + (long)lround(joy_filt.tilt * TILT_JOG_SPEED * dt), cfg[1].min_limit, cfg[1].max_limit);
       steppers[1]->moveTo(t);
     }
     
@@ -291,13 +289,12 @@ void processOSC() {
         if (m.size() > 1) config.expo = clampF(m.getFloat(1), 0.f, 0.95f);
         if (m.size() > 2) config.slew_per_s = fabsf(m.getFloat(2));
         if (m.size() > 3) config.filt_hz = fabsf(m.getFloat(3));
-        if (m.size() > 4) config.pan_tilt_speed = clampF(m.getFloat(4), 0.1f, 3.0f);
-        if (m.size() > 5) config.slide_speed = clampF(m.getFloat(5), 0.1f, 3.0f);
+        if (m.size() > 4) config.slide_speed = clampF(m.getFloat(4), 0.1f, 3.0f);
         setJoystickConfig(config);
         
-        Serial.printf("🎛 Joy cfg: dz=%.2f expo=%.2f slew=%.0f filt=%.1f PT=%.2fx S=%.2fx\n",
+        Serial.printf("🎛 Joy cfg: dz=%.2f expo=%.2f slew=%.0f filt=%.1f S=%.2fx\n",
                       config.deadzone, config.expo, config.slew_per_s, config.filt_hz,
-                      config.pan_tilt_speed, config.slide_speed);
+                      config.slide_speed);
       });
       
       // Configuration de la politique d'annulation
