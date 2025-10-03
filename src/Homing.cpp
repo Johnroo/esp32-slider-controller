@@ -55,7 +55,7 @@ void homeSlide() {
   steppers[i]->setAcceleration(HOMING_ACCEL);
   
   // Réduire le courant pour éviter les dégâts en cas de collision
-  drivers[i]->rms_current(800); // Réduire à 800mA pour le homing
+  drivers[i]->rms_current(1800); // boost à 1800mA pour le homing
   
   Serial.printf("🔧 Configuration homing: vitesse=%d, accel=%d, courant=800mA\n", 
                 HOMING_SPEED, HOMING_ACCEL);
