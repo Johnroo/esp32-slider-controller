@@ -20,7 +20,8 @@
 
 //==================== Configuration matérielle ====================
 
-// Pins STEP/DIR/EN (définis dans MotorControl.cpp)
+// Pins STEP/DIR/EN (définis dans Config.cpp)
+// ⚠️ ATTENTION: Ces pins sont critiques pour le matériel - ne pas modifier sans vérification!
 extern const int STEP_PINS[NUM_MOTORS];
 extern const int DIR_PINS[NUM_MOTORS];
 extern const int ENABLE_PINS[NUM_MOTORS];

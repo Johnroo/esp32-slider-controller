@@ -23,10 +23,10 @@ uint32_t DEFAULT_MOVE_DURATION_MS = DEFAULT_MOVE_DURATION;
 
 //==================== Configuration matérielle ====================
 
-// Pins STEP/DIR/EN pour chaque moteur
-const int STEP_PINS[NUM_MOTORS] = {14, 27, 26, 25};
-const int DIR_PINS[NUM_MOTORS] = {12, 13, 33, 32};
-const int ENABLE_PINS[NUM_MOTORS] = {15, 2, 4, 5};
+// Pins STEP/DIR/EN pour chaque moteur (ATTENTION: Ne pas modifier sans vérification!)
+const int STEP_PINS[NUM_MOTORS] = {18, 21, 23, 26};
+const int DIR_PINS[NUM_MOTORS] = {19, 22, 25, 27};
+const int ENABLE_PINS[NUM_MOTORS] = {13, 14, 32, 33};
 
 //==================== Fonctions de configuration ====================
 
