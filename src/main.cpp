@@ -14,6 +14,8 @@
 #include "MotorControl.h"
 #include "Homing.h"
 #include "Presets.h"
+#include "Tracking.h"
+#include "Utils.h"
 
 //==================== Configuration ====================
 
@@ -50,11 +52,7 @@ static inline long active_tilt_offset(bool recall_phase){
   return recall_phase ? eff_tilt_offset() : tilt_offset_steps; 
 }
 
-// Mapping linéaire slide -> compensation pan/tilt (en steps)
-long PAN_AT_SLIDE_MIN  = +800;  // ex: +800 à gauche
-long PAN_AT_SLIDE_MAX  = -800;  // ex: -800 à droite
-long TILT_AT_SLIDE_MIN = 0;
-long TILT_AT_SLIDE_MAX = 0;
+// Les constantes de mapping sont maintenant dans le module Tracking
 
 // Mouvement synchronisé en cours
 struct SyncMove {
@@ -72,20 +70,7 @@ struct CancelPolicy {
 } cancel;
 
 // Couplage Pan/Tilt ↔ Slide pendant le jog
-struct Follow {
-  bool enabled = true;
-  bool valid   = false;
-  long pan_anchor  = 0;
-  long tilt_anchor = 0;
-} follow;
-
-// Interpolation d'ancres pendant un recall autour de l'autopan
-struct AnchorMorph {
-  bool active = false;
-  long p0 = 0, t0 = 0;
-  long p1 = 0, t1 = 0;
-  uint32_t t0_ms = 0, T_ms = 0;
-} anchor_morph;
+// Les structures Follow et AnchorMorph sont maintenant dans le module Tracking
 
 // Politique de recall du slide
 enum class SlideRecallPolicy : uint8_t { KEEP_AB = 0, GOTO_THEN_RESUME = 1 };
@@ -134,17 +119,7 @@ void home_slide() {
 }
 
 
-//==================== NEW: Helpers ====================
-static inline long clampL(long v, long vmin, long vmax){ return v < vmin ? vmin : (v > vmax ? vmax : v); }
-static inline float clampF(float v, float vmin, float vmax){ return v < vmin ? vmin : (v > vmax ? vmax : v); }
-static inline float lerp(float a, float b, float u){ return a + (b - a) * u; }
-
-// Minimum-jerk s(t) = 10τ^3 - 15τ^4 + 6τ^5 avec τ = t/T
-// ds/dt max = 1.875/T ; d2s/dt2 max ≈ 5.7735/T^2
-static inline float s_minjerk(float tau){
-  tau = clampF(tau, 0.0f, 1.0f);
-  return 10*tau*tau*tau - 15*tau*tau*tau*tau + 6*tau*tau*tau*tau*tau;
-}
+// Les fonctions utilitaires sont maintenant dans le module Presets
 
 //==================== NEW: Joystick Pipeline ====================
 struct JoyCfg { 
@@ -248,23 +223,7 @@ void loadActiveBank() {
   loadBank(activeBank);
 }
 
-//==================== NEW: Mapping slide->pan/tilt ====================
-long pan_comp_from_slide(long slide){
-  float u = (float)(slide - cfg[3].min_limit) / (float)(cfg[3].max_limit - cfg[3].min_limit);
-  return (long) lround(lerp(PAN_AT_SLIDE_MIN, PAN_AT_SLIDE_MAX, clampF(u,0,1)));
-}
-long tilt_comp_from_slide(long slide){
-  float u = (float)(slide - cfg[3].min_limit) / (float)(cfg[3].max_limit - cfg[3].min_limit);
-  return (long) lround(lerp(TILT_AT_SLIDE_MIN, TILT_AT_SLIDE_MAX, clampF(u,0,1)));
-}
-
-// Helper pour rafraîchir l'ancre de suivi
-static inline void follow_refresh_anchor() {
-  long s = steppers[3]->targetPos();
-  follow.pan_anchor  = steppers[0]->targetPos() - pan_comp_from_slide(s);
-  follow.tilt_anchor = steppers[1]->targetPos() - tilt_comp_from_slide(s);
-  follow.valid = true;
-}
+// Les fonctions de mapping et de suivi sont maintenant dans le module Tracking
 
 // Les fonctions d'interpolation sont maintenant dans le module Presets
 
@@ -279,15 +238,8 @@ void coordinator_tick(){
   // Mode interpolation automatique multi-presets (prioritaire)
   updateInterpolation();
 
-  // Interpolation d'ancre min-jerk pour recall autour de l'autopan
-  if (anchor_morph.active) {
-    float tau = (float)(now - anchor_morph.t0_ms) / (float)anchor_morph.T_ms;
-    if (tau >= 1.0f) { tau = 1.0f; anchor_morph.active = false; }
-    float s = s_minjerk(tau);
-    follow.pan_anchor  = lround( lerp((float)anchor_morph.p0, (float)anchor_morph.p1, s) );
-    follow.tilt_anchor = lround( lerp((float)anchor_morph.t0, (float)anchor_morph.t1, s) );
-    follow.valid = true; // ancres imposées
-  }
+  // Mise à jour du suivi coordonné slide-pan/tilt
+  updateTracking();
 
   // Interpolation d'ancre min-jerk pour recall autour de l'autopan
   
@@ -303,9 +255,9 @@ void coordinator_tick(){
 
     // Faire suivre Pan/Tilt via la map + offsets joystick
     if (follow.enabled){
-      if (!follow.valid) follow_refresh_anchor();
-      long pComp = pan_comp_from_slide(Sgoal);
-      long tComp = tilt_comp_from_slide(Sgoal);
+      if (!follow.valid) refreshFollowAnchor();
+      long pComp = panCompFromSlide(Sgoal);
+      long tComp = tiltCompFromSlide(Sgoal);
       bool in_recall = sync_move.active || anchor_morph.active;
       long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
       long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
@@ -390,9 +342,9 @@ void coordinator_tick(){
 
       // Faire suivre Pan/Tilt via la map slide->pan/tilt
       if (follow.enabled) {
-        if (!follow.valid) follow_refresh_anchor();
-        long pComp = pan_comp_from_slide(Sgoal);
-        long tComp = tilt_comp_from_slide(Sgoal);
+        if (!follow.valid) refreshFollowAnchor();
+        long pComp = panCompFromSlide(Sgoal);
+        long tComp = tiltCompFromSlide(Sgoal);
         bool in_recall = sync_move.active || anchor_morph.active;
         long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
         long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
@@ -432,8 +384,8 @@ void coordinator_tick(){
     slide_ref = clampL(slide_ref, cfg[3].min_limit, cfg[3].max_limit);
 
     // Compensations en fonction du slide + offsets joystick (toujours actifs)
-    long pan_comp  = pan_comp_from_slide(slide_ref);
-    long tilt_comp = tilt_comp_from_slide(slide_ref);
+    long pan_comp  = panCompFromSlide(slide_ref);
+    long tilt_comp = tiltCompFromSlide(slide_ref);
 
     long pan_goal  = sync_move.goal_base[0] + pan_comp + eff_pan_offset();
     long tilt_goal = sync_move.goal_base[1] + tilt_comp + eff_tilt_offset();
@@ -559,9 +511,12 @@ void processOSC() {
       
       // Configuration du suivi Pan/Tilt ↔ Slide
       msg.dispatch("/follow/en", [](OSCMessage &m){
-        follow.enabled = m.getInt(0) != 0;
-        follow.valid = false;
-        Serial.printf("🎯 Follow mapping on jog: %s\n", follow.enabled ? "ON" : "OFF");
+        if (m.getInt(0) != 0) {
+          startTracking();
+        } else {
+          stopTracking();
+        }
+        Serial.printf("🎯 Follow mapping on jog: %s\n", isTrackingEnabled() ? "ON" : "OFF");
       });
       
       // Mode AB infini pour le slide (déprécié)
@@ -901,8 +856,8 @@ void processOSC() {
         long T = steppers[1]->getCurrentPosition();
         long Z = steppers[2]->getCurrentPosition();
 
-        long pComp = pan_comp_from_slide(S);
-        long tComp = tilt_comp_from_slide(S);
+        long pComp = panCompFromSlide(S);
+        long tComp = tiltCompFromSlide(S);
 
         presets[i].p = P; presets[i].t = T; presets[i].z = Z; presets[i].s = S;
 
@@ -976,12 +931,10 @@ void processOSC() {
         TILT_OFFSET_RANGE = m.getInt(1);
       });
       msg.dispatch("/config/pan_map", [](OSCMessage &m){
-        PAN_AT_SLIDE_MIN = m.getInt(0);
-        PAN_AT_SLIDE_MAX = m.getInt(1);
+        setPanMapping(m.getInt(0), m.getInt(1));
       });
       msg.dispatch("/config/tilt_map", [](OSCMessage &m){
-        TILT_AT_SLIDE_MIN = m.getInt(0);
-        TILT_AT_SLIDE_MAX = m.getInt(1);
+        setTiltMapping(m.getInt(0), m.getInt(1));
       });
       
       //==================== NEW: Routes OSC pour offsets latched ====================
@@ -1192,6 +1145,9 @@ void setup() {
   
   // Initialiser le système de presets
   initPresets();
+  
+  // Initialiser le système de suivi
+  initTracking();
   
   // WiFi Manager
   WiFiManager wm;
