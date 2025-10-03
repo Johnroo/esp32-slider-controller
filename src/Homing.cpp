@@ -54,6 +54,9 @@ void homeSlide() {
   steppers[i]->setSpeedInHz(HOMING_SPEED);
   steppers[i]->setAcceleration(HOMING_ACCEL);
   
+  // Configuration pour StallGuard4 (SpreadCycle requis pour le homing)
+  drivers[i]->en_spreadCycle(true);   // SpreadCycle pour StallGuard4
+  
   // Réduire le courant pour éviter les dégâts en cas de collision
   drivers[i]->rms_current(2000); // boost à 1800mA pour le homing
   
@@ -156,9 +159,9 @@ void homeSlide() {
   steppers[i]->setAcceleration(cfg[i].max_accel);
   drivers[i]->rms_current(cfg[i].current_ma);
   
-  // IMPORTANT: Restaurer SpreadCycle pour un meilleur fonctionnement du slider
-  drivers[i]->en_spreadCycle(true);  // SpreadCycle pour le fonctionnement normal
-  Serial.println("🔄 Mode SpreadCycle restauré pour le fonctionnement normal");
+  // IMPORTANT: Passer en StealthChop pour un meilleur fonctionnement du slider
+  drivers[i]->en_spreadCycle(false);  // StealthChop pour le fonctionnement normal
+  Serial.println("🔄 Mode StealthChop activé pour le fonctionnement normal");
   
   Serial.println("🏠 HOMING SLIDE COMPLETED");
 }
