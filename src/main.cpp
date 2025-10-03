@@ -16,6 +16,7 @@
 #include "Presets.h"
 #include "Tracking.h"
 #include "MotionPlanner.h"
+#include "Joystick.h"
 #include "Utils.h"
 
 //==================== Configuration ====================
@@ -23,45 +24,18 @@
 //==================== NEW: Presets, offsets, mapping ====================
 // Les structures Preset et variables sont maintenant dans le module Presets
 
-// Offsets joystick (en steps)
-volatile long pan_offset_steps  = 0;
-volatile long tilt_offset_steps = 0;
-
-// Offsets joystick latched (s'accumulent, persistent)
-volatile long pan_offset_latched  = 0;
-volatile long tilt_offset_latched = 0;
-
-long PAN_OFFSET_RANGE  = 800;   // max offset +/- (configurable via OSC)
-long TILT_OFFSET_RANGE = 800;
-
-// Baseline d'offset au recall (Δoffset = latched - baseline)
-struct OffsetSession {
-  long pan0 = 0;
-  long tilt0 = 0;
-} offset_session;
+// Les variables d'offsets et structures sont maintenant dans le module Joystick
 
 const long OFFSET_DEADBAND_STEPS = 2; // anti-bruit
 static inline long odband(long v){ return (labs(v) <= OFFSET_DEADBAND_STEPS) ? 0 : v; }
 
-static inline long eff_pan_offset()  { return odband(pan_offset_latched  - offset_session.pan0); }
-static inline long eff_tilt_offset() { return odband(tilt_offset_latched - offset_session.tilt0); }
-
-static inline long active_pan_offset(bool recall_phase){ 
-  return recall_phase ? eff_pan_offset() : pan_offset_steps; 
-}
-static inline long active_tilt_offset(bool recall_phase){ 
-  return recall_phase ? eff_tilt_offset() : tilt_offset_steps; 
-}
+// Les fonctions d'offsets sont maintenant dans le module Joystick
 
 // Les constantes de mapping sont maintenant dans le module Tracking
 
 // La structure SyncMove et la variable sync_move sont maintenant dans le module MotionPlanner
 
-// Politique d'annulation des presets
-struct CancelPolicy { 
-  bool by_joystick = false;  // joystick n'annule pas les presets (offsets actifs)
-  bool by_axis = true;      // Direct Axis annule les presets (contrôle direct)
-} cancel;
+// La structure CancelPolicy est maintenant dans le module Joystick
 
 // Couplage Pan/Tilt ↔ Slide pendant le jog
 // Les structures Follow et AnchorMorph sont maintenant dans le module Tracking
@@ -86,15 +60,11 @@ struct SlideAB {
 
 // Les structures d'interpolation et banques sont maintenant dans le module Presets
 
-// Jog slide
-float slide_jog_cmd = 0.0f;    // -1..+1
-float SLIDE_JOG_SPEED = 6000;  // steps/s @ |cmd|=1 (à ajuster)
+// Les variables de jog slide sont maintenant dans le module Joystick
 
 // La variable interp_jog_cmd est maintenant dans le module Presets
 
-// Jog Pan/Tilt (vitesses de jog) - dérivées de la config
-float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
-float TILT_JOG_SPEED = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
+// Les vitesses de jog sont maintenant dans le module Joystick
 
 // Pins et configuration des moteurs maintenant dans MotorControl.h
 
@@ -116,72 +86,11 @@ void home_slide() {
 // Les fonctions utilitaires sont maintenant dans le module Presets
 
 //==================== NEW: Joystick Pipeline ====================
-struct JoyCfg { 
-  float deadzone=0.06f, expo=0.35f, slew_per_s=8000.0f, filt_hz=60.0f, 
-        pan_tilt_speed=1.0f, slide_speed=1.0f; 
-} joy;
+// Les structures JoyCfg, JoyState et variables sont maintenant dans le module Joystick
 
-struct JoyState { 
-  float pan=0, tilt=0, slide=0; 
-};
+// Les fonctions utilitaires du joystick sont maintenant dans le module Joystick
 
-volatile JoyState joy_raw;  // alimenté par l'OSC
-static   JoyState joy_cmd, joy_filt;
-
-static inline float apply_deadzone_expo(float x, float dz, float expo){
-  x = clampF(x, -1.f, 1.f); 
-  if (fabsf(x) <= dz) return 0.f;
-  float s = x >= 0 ? 1.f : -1.f, u = (fabsf(x) - dz) / (1.f - dz);
-  return s * ((1-expo) * u + expo * u * u * u);
-}
-
-static inline float iir_1pole(float y, float x, float f, float dt){ 
-  if(f <= 0) return x; 
-  float a = 1.f - expf(-2.f * 3.1415926f * f * dt); 
-  return y + a * (x - y); 
-}
-
-static inline float slew_limit(float y, float x, float slew, float dt){
-  if (slew <= 0) return x; 
-  float d = x - y, m = slew * dt;
-  if (d > m) d = m; 
-  if (d < -m) d = -m; 
-  return y + d;
-}
-
-void joystick_tick(){
-  static uint32_t t0 = millis(); 
-  uint32_t now = millis(); 
-  float dt = (now - t0) * 0.001f; 
-  if(dt <= 0) return; 
-  t0 = now;
-  
-  joy_cmd.pan   = apply_deadzone_expo(joy_raw.pan,  joy.deadzone, joy.expo);
-  joy_cmd.tilt  = apply_deadzone_expo(joy_raw.tilt, joy.deadzone, joy.expo);
-  joy_cmd.slide = apply_deadzone_expo(joy_raw.slide, joy.deadzone, joy.expo);
-
-  joy_filt.pan   = slew_limit(joy_filt.pan,   iir_1pole(joy_filt.pan,   joy_cmd.pan,   joy.filt_hz, dt), joy.slew_per_s/(float)PAN_OFFSET_RANGE, dt);
-  joy_filt.tilt  = slew_limit(joy_filt.tilt,  iir_1pole(joy_filt.tilt,  joy_cmd.tilt,  joy.filt_hz, dt), joy.slew_per_s/(float)TILT_OFFSET_RANGE, dt);
-  joy_filt.slide = slew_limit(joy_filt.slide, iir_1pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
-
-  // Intégration des offsets joystick (comportement "latched")
-  if (sync_move.active || slideAB.enabled || fabsf(slide_jog_cmd) > 0.001f) {
-    // Vitesse d'empilement en steps/s à |joy|=1 (30% de la Vmax de l'axe)
-    const float PAN_OFFSET_RATE  = cfg[0].max_speed * 0.3f;  // steps/s
-    const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.3f;  // steps/s
-    
-    long d_pan  = lroundf(joy_filt.pan  * PAN_OFFSET_RATE  * dt);
-    long d_tilt = lroundf(joy_filt.tilt * TILT_OFFSET_RATE * dt);
-    
-    pan_offset_latched  = clampL(pan_offset_latched  + d_pan,  -PAN_OFFSET_RANGE,  +PAN_OFFSET_RANGE);
-    tilt_offset_latched = clampL(tilt_offset_latched + d_tilt, -TILT_OFFSET_RANGE, +TILT_OFFSET_RANGE);
-  }
-  
-  // Publie les offsets utilisés par le planificateur
-  pan_offset_steps  = pan_offset_latched;
-  tilt_offset_steps = tilt_offset_latched;
-  slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
-}
+// La fonction joystick_tick() est maintenant dans le module Joystick
 
 // La fonction pick_duration_ms_for_deltas est maintenant dans le module MotionPlanner
 
@@ -218,7 +127,7 @@ void coordinator_tick(){
 
   // Interpolation d'ancre min-jerk pour recall autour de l'autopan
   
-  if (slideAB.enabled && !sync_move.active){
+  if (slideAB.enabled && !isSynchronizedMoveActive()){
     float tau = (float)(now - slideAB.t0_ms) / (float)slideAB.T_ms;
     if (tau >= 1.0f){ slideAB.dir = -slideAB.dir; slideAB.t0_ms = now; tau = 0.0f; }
     float s = s_minjerk(tau);
@@ -233,9 +142,9 @@ void coordinator_tick(){
       if (!follow.valid) refreshFollowAnchor();
       long pComp = panCompFromSlide(Sgoal);
       long tComp = tiltCompFromSlide(Sgoal);
-      bool in_recall = sync_move.active || anchor_morph.active;
-      long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
-      long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
+      bool in_recall = isSynchronizedMoveActive() || isAnchorMorphActive();
+      long Pgoal = clampL(follow.pan_anchor  + pComp + getEffectivePanOffset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
+      long Tgoal = clampL(follow.tilt_anchor + tComp + getEffectiveTiltOffset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
       steppers[0]->moveTo(Pgoal);
       steppers[1]->moveTo(Tgoal);
     }
@@ -244,7 +153,7 @@ void coordinator_tick(){
   }
 
   // 2) Jog direct Pan/Tilt/Slide (vitesse) quand pas de mouvement sync
-  if (!sync_move.active){
+  if (!isSynchronizedMoveActive()){
     float dt = dt_ms / 1000.0f;
     
     // Jog interpolation manuel (prioritaire)
@@ -295,21 +204,23 @@ void coordinator_tick(){
     }
     
     // Jog Pan
-    if (fabs(joy_filt.pan) > 0.001f) {
+    if (isPanActive()) {
       long p = steppers[0]->targetPos();
-      p = clampL(p + (long)lround(joy_filt.pan * PAN_JOG_SPEED * joy.pan_tilt_speed * dt), cfg[0].min_limit, cfg[0].max_limit);
+      float pan_speed = PAN_JOG_SPEED * joy.pan_tilt_speed;
+      p = clampL(p + (long)lround(joy_filt.pan * pan_speed * dt), cfg[0].min_limit, cfg[0].max_limit);
       steppers[0]->moveTo(p);
     }
     
     // Jog Tilt
-    if (fabs(joy_filt.tilt) > 0.001f) {
+    if (isTiltActive()) {
       long t = steppers[1]->targetPos();
-      t = clampL(t + (long)lround(joy_filt.tilt * TILT_JOG_SPEED * joy.pan_tilt_speed * dt), cfg[1].min_limit, cfg[1].max_limit);
+      float tilt_speed = TILT_JOG_SPEED * joy.pan_tilt_speed;
+      t = clampL(t + (long)lround(joy_filt.tilt * tilt_speed * dt), cfg[1].min_limit, cfg[1].max_limit);
       steppers[1]->moveTo(t);
     }
     
     // Jog Slide (+ follow map for Pan/Tilt) - bloqué pendant AB
-    if (!slideAB.enabled && fabs(slide_jog_cmd) > 0.001f){
+    if (!slideAB.enabled && isSlideActive()){
       long s = steppers[3]->targetPos();
       long Sgoal = clampL(s + (long)lround(slide_jog_cmd * SLIDE_JOG_SPEED * dt),
                           cfg[3].min_limit, cfg[3].max_limit);
@@ -320,13 +231,13 @@ void coordinator_tick(){
         if (!follow.valid) refreshFollowAnchor();
         long pComp = panCompFromSlide(Sgoal);
         long tComp = tiltCompFromSlide(Sgoal);
-        bool in_recall = sync_move.active || anchor_morph.active;
-        long Pgoal = clampL(follow.pan_anchor  + pComp + active_pan_offset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
-        long Tgoal = clampL(follow.tilt_anchor + tComp + active_tilt_offset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
+        bool in_recall = isSynchronizedMoveActive() || isAnchorMorphActive();
+        long Pgoal = clampL(follow.pan_anchor  + pComp + getEffectivePanOffset(in_recall),  cfg[0].min_limit, cfg[0].max_limit);
+        long Tgoal = clampL(follow.tilt_anchor + tComp + getEffectiveTiltOffset(in_recall), cfg[1].min_limit, cfg[1].max_limit);
         
         // Ne PAS écraser un axe si le joystick le pilote déjà
-        bool joyP = fabsf(joy_filt.pan)  > 0.001f;
-        bool joyT = fabsf(joy_filt.tilt) > 0.001f;
+        bool joyP = isPanActive();
+        bool joyT = isTiltActive();
         
         if (!joyP) steppers[0]->moveTo(Pgoal);
         if (!joyT) steppers[1]->moveTo(Tgoal);
@@ -383,7 +294,8 @@ void processOSC() {
           Serial.println("⏹️ Cancel by joystick");
         }
         
-        joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f); 
+        float pan = clampF(m.getFloat(0), -1.f, +1.f);
+        setRawJoystickValues(pan, joy_raw.tilt, joy_raw.slide);
       });
       msg.dispatch("/tilt", [](OSCMessage &m){ 
         // Annuler preset selon la politique
@@ -392,7 +304,8 @@ void processOSC() {
           Serial.println("⏹️ Cancel by joystick");
         }
         
-        joy_raw.tilt = clampF(m.getFloat(0), -1.f, +1.f); 
+        float tilt = clampF(m.getFloat(0), -1.f, +1.f);
+        setRawJoystickValues(joy_raw.pan, tilt, joy_raw.slide);
       });
       msg.dispatch("/joy/pt", [](OSCMessage &m){ 
         // Annuler preset selon la politique
@@ -401,8 +314,9 @@ void processOSC() {
           Serial.println("⏹️ Cancel by joystick");
         }
         
-        joy_raw.pan = clampF(m.getFloat(0), -1.f, +1.f);
-        joy_raw.tilt = clampF(m.getFloat(1), -1.f, +1.f); 
+        float pan = clampF(m.getFloat(0), -1.f, +1.f);
+        float tilt = clampF(m.getFloat(1), -1.f, +1.f);
+        setRawJoystickValues(pan, tilt, joy_raw.slide);
       });
       msg.dispatch("/slide/jog", [](OSCMessage &m){ 
         // Annuler preset selon la politique
@@ -411,28 +325,33 @@ void processOSC() {
           Serial.println("⏹️ Cancel by joystick");
         }
         
-        joy_raw.slide = clampF(m.getFloat(0), -1.f, +1.f); 
+        float slide = clampF(m.getFloat(0), -1.f, +1.f);
+        setRawJoystickValues(joy_raw.pan, joy_raw.tilt, slide);
       });
       
       // Optionnel: réglages runtime
       msg.dispatch("/joy/config", [](OSCMessage &m){
-        if (m.size() > 0) joy.deadzone = clampF(m.getFloat(0), 0.f, 0.5f);
-        if (m.size() > 1) joy.expo = clampF(m.getFloat(1), 0.f, 0.95f);
-        if (m.size() > 2) joy.slew_per_s = fabsf(m.getFloat(2));
-        if (m.size() > 3) joy.filt_hz = fabsf(m.getFloat(3));
-        if (m.size() > 4) joy.pan_tilt_speed = clampF(m.getFloat(4), 0.1f, 3.0f);
-        if (m.size() > 5) joy.slide_speed = clampF(m.getFloat(5), 0.1f, 3.0f);
+        JoyCfg config = getJoystickConfig();
+        if (m.size() > 0) config.deadzone = clampF(m.getFloat(0), 0.f, 0.5f);
+        if (m.size() > 1) config.expo = clampF(m.getFloat(1), 0.f, 0.95f);
+        if (m.size() > 2) config.slew_per_s = fabsf(m.getFloat(2));
+        if (m.size() > 3) config.filt_hz = fabsf(m.getFloat(3));
+        if (m.size() > 4) config.pan_tilt_speed = clampF(m.getFloat(4), 0.1f, 3.0f);
+        if (m.size() > 5) config.slide_speed = clampF(m.getFloat(5), 0.1f, 3.0f);
+        setJoystickConfig(config);
         
         Serial.printf("🎛 Joy cfg: dz=%.2f expo=%.2f slew=%.0f filt=%.1f PT=%.2fx S=%.2fx\n",
-                      joy.deadzone, joy.expo, joy.slew_per_s, joy.filt_hz,
-                      joy.pan_tilt_speed, joy.slide_speed);
+                      config.deadzone, config.expo, config.slew_per_s, config.filt_hz,
+                      config.pan_tilt_speed, config.slide_speed);
       });
       
       // Configuration de la politique d'annulation
       msg.dispatch("/preset/cancel_policy", [](OSCMessage &m){
-        if (m.size() > 0) cancel.by_joystick = m.getInt(0) != 0;
-        if (m.size() > 1) cancel.by_axis = m.getInt(1) != 0;
-        Serial.printf("⚙️ Cancel policy: joystick=%d axis=%d\n", cancel.by_joystick, cancel.by_axis);
+        CancelPolicy policy = getCancelPolicy();
+        if (m.size() > 0) policy.by_joystick = m.getInt(0) != 0;
+        if (m.size() > 1) policy.by_axis = m.getInt(1) != 0;
+        setCancelPolicy(policy);
+        Serial.printf("⚙️ Cancel policy: joystick=%d axis=%d\n", policy.by_joystick, policy.by_axis);
       });
       
       // Configuration du suivi Pan/Tilt ↔ Slide
@@ -842,8 +761,7 @@ void processOSC() {
 
       // Config: ranges offsets et mapping slide->pan/tilt
       msg.dispatch("/config/offset_range", [](OSCMessage &m){
-        PAN_OFFSET_RANGE  = m.getInt(0);
-        TILT_OFFSET_RANGE = m.getInt(1);
+        setOffsetRanges(m.getInt(0), m.getInt(1));
       });
       msg.dispatch("/config/pan_map", [](OSCMessage &m){
         setPanMapping(m.getInt(0), m.getInt(1));
@@ -862,26 +780,29 @@ void processOSC() {
       });
       
       msg.dispatch("/offset/add", [](OSCMessage &m){
-        if (m.size()>0)
-          pan_offset_latched  = clampL(pan_offset_latched  + m.getInt(0), -PAN_OFFSET_RANGE,  PAN_OFFSET_RANGE);
-        if (m.size()>1)
-          tilt_offset_latched = clampL(tilt_offset_latched + m.getInt(1), -TILT_OFFSET_RANGE, TILT_OFFSET_RANGE);
+        long pan = 0, tilt = 0;
+        if (m.size() > 0) pan = m.getInt(0);
+        if (m.size() > 1) tilt = m.getInt(1);
+        addLatchedOffsets(pan, tilt);
         Serial.println("➕ Add offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
       });
       
       msg.dispatch("/offset/set", [](OSCMessage &m){
-        if (m.size()>0) pan_offset_latched  = clampL(m.getInt(0), -PAN_OFFSET_RANGE,  PAN_OFFSET_RANGE);
-        if (m.size()>1) tilt_offset_latched = clampL(m.getInt(1), -TILT_OFFSET_RANGE, TILT_OFFSET_RANGE);
+        long pan = 0, tilt = 0;
+        if (m.size() > 0) pan = m.getInt(0);
+        if (m.size() > 1) tilt = m.getInt(1);
+        setLatchedOffsets(pan, tilt);
         Serial.println("🎯 Set offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
       });
       
       msg.dispatch("/offset/bake", [](OSCMessage &m){
         if (isSynchronizedMoveActive()){
           // Intègre l'offset actuel dans la goal_base du preset
-          bakeOffsetsIntoCurrentMove(pan_offset_latched, tilt_offset_latched);
+          long pan, tilt;
+          getLatchedOffsets(pan, tilt);
+          bakeOffsetsIntoCurrentMove(pan, tilt);
         }
-        pan_offset_latched  = 0;
-        tilt_offset_latched = 0;
+        resetLatchedOffsets();
         Serial.println("🔄 Reset offsets after bake");
       });
     } else {
@@ -1035,12 +956,13 @@ void setup() {
   Serial.println("🚀 ESP32 Slider Controller Starting...");
   
   // Calculer les vitesses de jog basées sur la config
-  PAN_JOG_SPEED = cfg[0].max_speed * 0.8f;   // 80% de la vitesse max
-  TILT_JOG_SPEED = cfg[1].max_speed * 0.8f;  // 80% de la vitesse max
-  SLIDE_JOG_SPEED = cfg[3].max_speed * 0.8f;  // 80% de la vitesse max
+  float pan_speed = cfg[0].max_speed * 0.8f;   // 80% de la vitesse max
+  float tilt_speed = cfg[1].max_speed * 0.8f;  // 80% de la vitesse max
+  float slide_speed = cfg[3].max_speed * 0.8f;  // 80% de la vitesse max
+  setJogSpeeds(pan_speed, tilt_speed, slide_speed);
   
   Serial.printf("🎯 Jog speeds: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
-                PAN_JOG_SPEED, TILT_JOG_SPEED, SLIDE_JOG_SPEED);
+                pan_speed, tilt_speed, slide_speed);
   
   // Charger la banque 0 au démarrage
   loadBank(0);
@@ -1064,6 +986,9 @@ void setup() {
   
   // Initialiser le planificateur de mouvements
   initMotionPlanner();
+  
+  // Initialiser le module joystick
+  initJoystick();
   
   // WiFi Manager
   WiFiManager wm;
@@ -1093,7 +1018,7 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
   processOSC();
-  joystick_tick();     // NEW: Pipeline joystick avec lissage
+  updateJoystick();    // NEW: Pipeline joystick avec lissage
   coordinator_tick();  // NEW: Orchestrateur de mouvements synchronisés
   
   // FastAccelStepper n'a pas besoin de engine.run()
