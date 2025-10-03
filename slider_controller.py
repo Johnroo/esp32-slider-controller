@@ -1025,6 +1025,10 @@ def send_bank_to_esp32(bank_id, bank_data):
         
         send_osc_message('/interp/setpoints', interp_data)
         
+        # Activer l'interpolation automatique si il y a des points
+        if interp_count > 2:
+            send_osc_message('/interp/auto', [1.0])  # Durée de 1 seconde par défaut
+        
         # Sauvegarder la banque sur l'ESP32
         send_osc_message('/bank/save', [bank_id])
         

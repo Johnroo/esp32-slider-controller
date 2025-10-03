@@ -14,14 +14,16 @@
 //==================== Configuration Homing ====================
 #define SLIDE_INDEX     3
 #define HOMING_SPEED    9000     // steps/s (2000-4000 range pour SG4)
-#define HOMING_ACCEL    20000    // accel élevée pour atteindre vitesse rapidement
-#define SG_DETECT       200      // seuil SG_RESULT pour détecter stall (commencer à ~100)
+#define HOMING_ACCEL    60000    // accel élevée pour atteindre vitesse rapidement
+#define SG_DETECT       20      // seuil SG_RESULT pour détecter stall (commencer à ~100)
 #define HOMING_TIMEOUT  20000    // ms
-#define BACKOFF_STEPS   300      // pas de recul après détection
+#define BACKOFF_STEPS   1000     // pas de recul après détection (augmenté pour éviter les sauts)
+#define BACKOFF_DELAY   500      // ms de délai après recul pour stabilisation
+#define SAFETY_STEPS   500      // marge de sécurité à l'intérieur des butées (pas)
 
 //==================== Variables globales ====================
 extern bool doAutoHomeSlide;     // lancer automatiquement au démarrage si true
-extern uint8_t slide_sg_threshold; // SGTHRS par défaut (sensibilité moyenne)
+extern bool homingInProgress;    // flag pour éviter les homing multiples
 
 //==================== Fonctions du module ====================
 /**
@@ -47,5 +49,11 @@ void setSlideSGThreshold(uint8_t threshold);
  * @return Seuil actuel (0-255)
  */
 uint8_t getSlideSGThreshold();
+
+/**
+ * @brief Vérifie si un homing est en cours
+ * @return true si homing en cours, false sinon
+ */
+bool isHomingInProgress();
 
 #endif // HOMING_H

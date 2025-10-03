@@ -494,7 +494,7 @@ void coordinator_tick(){
     follow.valid = true; // ancres imposées
   }
 
-  // Interpolation d’ancre min-jerk pour recall autour de l’autopan
+  // Interpolation d'ancre min-jerk pour recall autour de l'autopan
   
   if (slideAB.enabled && !sync_move.active){
     float tau = (float)(now - slideAB.t0_ms) / (float)slideAB.T_ms;
@@ -931,6 +931,11 @@ void processOSC() {
       // Homing slide & StallGuard threshold
       msg.dispatch("/slide/home", [](OSCMessage &m){
         Serial.println("\xF0\x9F\x8F\xA0 Commande OSC: homing du slide");
+        Serial.printf("🔍 DEBUG: homingInProgress = %s, adresse = %p\n", isHomingInProgress() ? "true" : "false", &homingInProgress);
+        if (isHomingInProgress()) {
+          Serial.println("⚠️ Homing déjà en cours, commande ignorée");
+          return;
+        }
         home_slide();
       });
       msg.dispatch("/slide/sgthrs", [](OSCMessage &m){
@@ -1349,7 +1354,7 @@ void setupWebServer() {
     for (int i = 0; i < banks[bankId].interpCount; i++) {
       JsonObject point = interpArray.createNestedObject();
       point["presetIndex"] = banks[bankId].interpPoints[i].presetIndex;
-      point["fraction"] = banks[bankId].interpPoints[i].fraction;
+      point["fraction"] = banks[bankId].interpPoints[i].fraction * 100.0f; // Convertir en pourcentage
     }
     
     String jsonString;

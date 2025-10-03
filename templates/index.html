@@ -10,14 +10,14 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -26,7 +26,7 @@
             padding: 30px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
         }
-        
+
         h1 {
             text-align: center;
             color: #333;
@@ -34,14 +34,14 @@
             font-size: 2.5em;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         }
-        
+
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .panel {
             background: #f8f9fa;
             border-radius: 15px;
@@ -54,7 +54,7 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
-        
+
         .panel h3 {
             color: #495057;
             margin-bottom: 15px;
@@ -62,7 +62,7 @@
             border-bottom: 2px solid #dee2e6;
             padding-bottom: 10px;
         }
-        
+
         .panel-black {
             background: #f8f9fa;
             border: 2px solid #e9ecef;
@@ -162,7 +162,7 @@
             font-weight: 600;
             color: #495057;
         }
-        
+
         .slider {
             width: 100%;
             height: 8px;
@@ -172,7 +172,7 @@
             -webkit-appearance: none;
             transition: all 0.3s ease;
         }
-        
+
         .slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
@@ -183,7 +183,7 @@
             cursor: pointer;
             box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
         }
-        
+
         .slider::-moz-range-thumb {
             width: 20px;
             height: 20px;
@@ -193,13 +193,13 @@
             border: none;
             box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
         }
-        
+
         .input-group {
             display: flex;
             gap: 10px;
             align-items: center;
         }
-        
+
         .input-group input {
             flex: 1;
             padding: 8px 12px;
@@ -240,7 +240,7 @@
             background: linear-gradient(45deg, #dc3545, #c82333);
             box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
         }
-        
+
         .btn-success {
             background: linear-gradient(45deg, #28a745, #1e7e34);
             box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
@@ -274,7 +274,7 @@
             background: #f8f9fa;
             transform: translateY(-2px);
         }
-        
+
         /* État: Sélectionné (bleu) */
         .preset-btn.selected {
             background: #007bff;
@@ -328,11 +328,11 @@
         .preset-btn.saved .preset-status {
             background: #ffc107;
         }
-        
+
         .preset-btn.recalled .preset-status {
             background: #17a2b8;
         }
-        
+
         .preset-controls {
             display: flex;
             gap: 10px;
@@ -367,8 +367,8 @@
             flex-wrap: wrap; 
         }
         .joy-visual { 
-            display: flex; 
-            flex-direction: column; 
+            display: flex;
+            flex-direction: column;
             align-items: center; 
         }
         #joyCanvas { 
@@ -384,7 +384,7 @@
         }
         .hint { 
             font-size: 12px; 
-            color: #6c757d; 
+            color: #6c757d;
             margin-top: 6px; 
         }
         
@@ -455,8 +455,8 @@
                             <option value="8">Bank 8</option>
                             <option value="9">Bank 9</option>
                         </select>
-                    </div>
-                    
+    </div>
+
                     <div class="control-group">
                         <button onclick="openBank()" class="btn-primary">📂 Open Bank</button>
                         <button onclick="saveBank()" class="btn-success">💾 Save Bank</button>
@@ -485,8 +485,8 @@
                             </select>
                             <button onclick="exportBank()" class="btn" style="background: #17a2b8;">📤 Export JSON</button>
                         </div>
-                    </div>
-                    
+        </div>
+
                     <div class="control-group">
                         <label>Import Bank:</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
@@ -504,7 +504,7 @@
                                 <option value="9">Bank 9</option>
                             </select>
                             <button onclick="importBank()" class="btn" style="background: #28a745;">📥 Import JSON</button>
-                        </div>
+                </div>
                     </div>
                     
                     <div id="exportImportStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; display: none;"></div>
@@ -541,9 +541,9 @@
                     <div class="preset-btn" data-preset="7" onclick="selectPreset(7)">
                         Preset 7
                         <div class="preset-status"></div>
-                    </div>
                 </div>
-                
+            </div>
+
 
                 <div class="control-group">
                     <label>Duration (seconds):</label>
@@ -553,9 +553,9 @@
             <div class="preset-controls">
                 <button class="btn btn-success" onclick="recallSelectedPreset()">▶️ Recall Selected</button>
                 <button class="btn" onclick="storeRealPreset()">💾 Store (positions réelles)</button>
+                </div>
             </div>
-            </div>
-            
+
             <!-- Joystick Panel -->
             <div class="panel">
                 <h3>🎮 Joystick Controls</h3>
@@ -578,13 +578,13 @@
                         <div class="joystick">
                             <h4>Tilt Offset</h4>
                             <input type="range" class="slider" id="tiltOffset" min="-1" max="1" step="0.01" value="0">
-                            <div class="value-display" id="tiltValue">0.00</div>
-                        </div>
-                    </div>
+                    <div class="value-display" id="tiltValue">0.00</div>
                 </div>
+                </div>
+            </div>
 
                 <button class="btn btn-warning" onclick="resetOffsets()">🔄 Reset Offsets</button>
-            </div>
+                </div>
             
             <!-- Direct Axis Controls -->
             <div class="panel">
@@ -594,7 +594,7 @@
                 <div class="control-group" style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffeaa7;">
                     <div style="margin-bottom: 10px;">
                         <strong>ESP32 Debug Tools:</strong>
-                    </div>
+                </div>
                     <button onclick="testPing()" class="btn btn-warning" style="margin-right: 10px;">🏓 Ping ESP32</button>
                     <button onclick="testConnection()" class="btn btn-warning" style="margin-right: 10px;">🧪 Test API Connection</button>
                     <button onclick="refreshAxes()" class="btn btn-primary" style="margin-right: 10px;">🔄 Test Axes Refresh</button>
@@ -604,8 +604,8 @@
                     <label>Pan (0 to 1):</label>
                     <input type="range" class="slider" id="axisPan" min="0" max="1" step="0.01" value="0.5">
                     <div class="value-display" id="axisPanValue">0.50</div>
-                </div>
-                
+            </div>
+
                 <div class="control-group">
                     <label>Tilt (0 to 1):</label>
                     <input type="range" class="slider" id="axisTilt" min="0" max="1" step="0.01" value="0.5">
@@ -623,12 +623,12 @@
                     <input type="range" class="slider" id="axisSlide" min="0" max="1" step="0.01" value="0.5">
                     <div class="value-display" id="axisSlideValue">0.50</div>
                 </div>
+                </div>
             </div>
-        </div>
-        
+
 
         <!-- Multi-Preset Interpolation Axis -->
-        <div class="control-panel">
+            <div class="control-panel">
             <h3>🎯 Interpolation Axis (Multi-Preset Morphing)</h3>
             
             <!-- Interpolation Points Configuration -->
@@ -669,11 +669,11 @@
                 
                 <div id="extraInterpPoints"></div>
             </div>
-            
+
             <div class="control-group">
                 <button onclick="addInterpPoint()" class="btn-secondary" id="addPointBtn">+ Add Point (2/6)</button>
                 <button onclick="applyInterpPoints()" class="btn-primary">Apply Points</button>
-            </div>
+                </div>
             
             <hr>
             
@@ -697,20 +697,20 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Auto Mode -->
             <div id="autoControls" style="display: none;">
                 <div class="control-group">
                     <label>Duration (seconds):</label>
                     <input type="number" id="interpAutoDuration" min="0.5" max="60.0" step="0.5" value="5.0" style="width: 80px;">
                     <span>s</span>
-                </div>
+                            </div>
                 <div class="control-group">
                     <button onclick="startAutoMorphing()" class="btn-success">▶️ Start Auto Morphing</button>
                     <button onclick="stopAutoMorphing()" class="btn-danger">⏹️ Stop</button>
-                </div>
-            </div>
-        </div>
+                            </div>
+                            </div>
+                            </div>
 
         <!-- Motor Configuration -->
         <div class="control-panel">
@@ -723,14 +723,14 @@
                     <label>Max Speed (steps/s):</label>
                     <input type="number" id="panMaxSpeed" min="2000" max="20000" step="100" value="20000" onchange="updatePanSpeed()">
                     <span id="panSpeedValue">20000</span>
-                </div>
+                        </div>
                 <div class="control-group">
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="panMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updatePanAccel()">
                     <span id="panAccelValue">12000</span>
-                </div>
-            </div>
-            
+                        </div>
+                    </div>
+
             <!-- Tilt Motor -->
             <div class="motor-config">
                 <h4>📐 Tilt Motor</h4>
@@ -738,13 +738,13 @@
                     <label>Max Speed (steps/s):</label>
                     <input type="number" id="tiltMaxSpeed" min="2000" max="20000" step="100" value="20000" onchange="updateTiltSpeed()">
                     <span id="tiltSpeedValue">20000</span>
-                </div>
+                            </div>
                 <div class="control-group">
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="tiltMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateTiltAccel()">
                     <span id="tiltAccelValue">12000</span>
-                </div>
-            </div>
+                            </div>
+                            </div>
             
             <!-- Zoom Motor -->
             <div class="motor-config">
@@ -753,13 +753,13 @@
                     <label>Max Speed (steps/s):</label>
                     <input type="number" id="zoomMaxSpeed" min="2000" max="20000" step="100" value="20000" onchange="updateZoomSpeed()">
                     <span id="zoomSpeedValue">20000</span>
-                </div>
+                            </div>
                 <div class="control-group">
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="zoomMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateZoomAccel()">
                     <span id="zoomAccelValue">12000</span>
-                </div>
-            </div>
+                        </div>
+                        </div>
             
             <!-- Slide Motor -->
             <div class="motor-config">
@@ -768,7 +768,7 @@
                     <label>Max Speed (steps/s):</label>
                     <input type="number" id="slideMaxSpeed" min="2000" max="20000" step="100" value="20000" onchange="updateSlideSpeed()">
                     <span id="slideSpeedValue">20000</span>
-                </div>
+                    </div>
                 <div class="control-group">
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="slideMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateSlideAccel()">
@@ -785,7 +785,7 @@
                     <label>SGTHRS (0-255):</label>
                     <input type="range" id="sgthrsRange" min="0" max="255" value="8" step="1" style="width: 200px;" oninput="updateSGTHRS()">
                     <span id="sgthrsVal">8</span>
-                </div>
+            </div>
                 <div class="hint" style="font-size: 12px; color: #888; margin-top: 5px;">
                     Le homing utilise StallGuard (spreadCycle, TCOOLTHRS max). Ajuste SGTHRS si nécessaire.
                 </div>
@@ -941,26 +941,26 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         
         function sendAxisTilt(value) {
             fetch('/api/axis_tilt', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: value})
-            });
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
         }
         
         function sendAxisZoom(value) {
             fetch('/api/axis_zoom', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: value})
-            });
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
         }
         
         function sendAxisSlide(value) {
             fetch('/api/axis_slide', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: value})
-            });
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
         }
         
         // Variables globales pour la gestion des états
@@ -1016,8 +1016,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             
             // Envoyer la commande de rappel
             fetch('/api/preset/recall', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({id: selectedPreset, duration: duration})
             }).then(response => {
                 if (response.ok) {
@@ -1069,8 +1069,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             const tiltMapMax = parseInt(document.getElementById('tiltMapMax').value);
             
             fetch('/api/config/offset_range', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({pan_range: panRange, tilt_range: tiltRange})
             });
             
@@ -1160,8 +1160,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             points.sort((a, b) => a.position - b.position);
             
             fetch('/api/interpolation/setpoints', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({points: points})
             });
         }
@@ -1189,10 +1189,10 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             
             // Envoyer la consigne de vitesse en temps réel au contrôleur
             fetch('/api/interpolation/jog', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: value})
-            });
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: value})
+                });
         }
 
         function resetInterpJog() {
@@ -1212,8 +1212,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             const duration = parseFloat(document.getElementById('interpAutoDuration').value);
             
             fetch('/api/interpolation/auto', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({enable: true, duration: duration})
             });
         }
@@ -1232,8 +1232,8 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             document.getElementById('panSpeedValue').textContent = speed;
             
             fetch('/api/motor/pan/max_speed', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({speed: speed})
             });
         }
@@ -1544,6 +1544,12 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                     
                     // Réinitialiser le file input
                     fileInput.value = '';
+                    
+                    // Recharger automatiquement l'interface pour afficher les nouveaux presets
+                    setTimeout(() => {
+                        loadPresets();
+                        loadInterpolation();
+                    }, 500);
                 } else {
                     statusDiv.textContent = `❌ Import failed: ${data.error}`;
                     statusDiv.style.background = '#f8d7da';
@@ -1562,10 +1568,10 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
         // Initialize display values
         document.getElementById('panValue').textContent = '0.00';
         document.getElementById('tiltValue').textContent = '0.00';
-        document.getElementById('axisPanValue').textContent = '0.50';
-        document.getElementById('axisTiltValue').textContent = '0.50';
-        document.getElementById('axisZoomValue').textContent = '0.50';
-        document.getElementById('axisSlideValue').textContent = '0.50';
+                document.getElementById('axisPanValue').textContent = '0.50';
+                document.getElementById('axisTiltValue').textContent = '0.50';
+                document.getElementById('axisZoomValue').textContent = '0.50';
+                document.getElementById('axisSlideValue').textContent = '0.50';
         document.getElementById('interpJogValue').textContent = '0.00';
         
         // Initialiser la banque active depuis localStorage
@@ -1654,12 +1660,7 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 });
             });
         }
-        const btnHome = document.getElementById('btnSlideHome');
-        if (btnHome) {
-            btnHome.addEventListener('click', () => {
-                fetch('/api/slide/home', { method: 'POST' });
-            });
-        }
+        // Le bouton homeSlide() est déjà géré par onclick="homeSlide()" dans le HTML
 
         pollJoystick(); // Réactivé pour l'interface de joystick
         
