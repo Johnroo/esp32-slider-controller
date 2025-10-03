@@ -1,7 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <FastAccelStepper.h>
-#include <TMCStepper.h>
 #include <WiFiManager.h>
 #include <ArduinoOTA.h>
 #include <ESPAsyncWebServer.h>
@@ -13,9 +11,9 @@
 #include <math.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include "MotorControl.h"
 
 //==================== Configuration ====================
-#define NUM_MOTORS 4
 
 //==================== NEW: Presets, offsets, mapping ====================
 struct Preset {
@@ -150,73 +148,13 @@ float interp_jog_cmd = 0.0f;    // -1..+1 (vitesse normalisée)
 float PAN_JOG_SPEED  = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
 float TILT_JOG_SPEED = 3000.0f; // steps/s @ |joy|=1 (sera calculé dans setup)
 
-// Pins STEP/DIR/EN
-const int STEP_PINS[NUM_MOTORS]    = {18, 21, 23, 26};
-const int DIR_PINS[NUM_MOTORS]     = {19, 22, 25, 27};
-const int ENABLE_PINS[NUM_MOTORS]  = {13, 14, 32, 33};
+// Pins et configuration des moteurs maintenant dans MotorControl.h
 
-// UART TMC2209
-#define UART_TX 17
-#define UART_RX 16
-#define ADDR_PAN   0b00
-#define ADDR_TILT  0b01
-#define ADDR_ZOOM  0b10
-#define ADDR_SLIDE 0b11
-#define R_SENSE 0.11f
+// Configuration des axes maintenant dans MotorControl.cpp
 
-// Configuration des axes
-struct AxisConfig {
-  long min_limit;
-  long max_limit;
-  int  current_ma;
-  int  microsteps;
-  int  max_speed;
-  int  max_accel;
-  int  sgt;
-  bool coolstep;
-  bool spreadcycle;
-  bool stallguard;
-};
+// Objets moteurs maintenant dans MotorControl.cpp
 
-AxisConfig cfg[NUM_MOTORS] = {
-  // Pan
-  {-27106, 27106, 1200, 16, 20000, 12000, 0, false, false, true},
-  // Tilt  
-  {-2439, 2439, 1200, 16, 20000, 12000, 0, false, false, true},
-  // Zoom
-  {-20000, 20000, 400, 16, 20000, 8000, 0, false, false, true},
-  // Slide
-  {-20000, 20000, 1800, 8, 10000, 12000, 0, false, false, true}
-};
-
-//==================== Objets moteurs ====================
-FastAccelStepperEngine engine;
-FastAccelStepper* steppers[NUM_MOTORS];
-
-TMC2209Stepper driver_pan  (&Serial2, R_SENSE, ADDR_PAN);
-TMC2209Stepper driver_tilt (&Serial2, R_SENSE, ADDR_TILT);
-TMC2209Stepper driver_zoom (&Serial2, R_SENSE, ADDR_ZOOM);
-TMC2209Stepper driver_slide(&Serial2, R_SENSE, ADDR_SLIDE);
-TMC2209Stepper* drivers[NUM_MOTORS] = {&driver_pan,&driver_tilt,&driver_zoom,&driver_slide};
-
-//==================== Setup Drivers TMC ====================
-void setupDriversTMC() {
-  Serial2.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
-  delay(50);
-
-  for (int i=0; i<NUM_MOTORS; i++) {
-    auto d = drivers[i];
-    d->begin();
-    d->toff(5);                                // enable driver
-    d->rms_current(cfg[i].current_ma);         // courant RMS
-    d->microsteps(cfg[i].microsteps);          // µsteps
-    d->pwm_autoscale(true);                    // pour StealthChop
-    d->en_spreadCycle(cfg[i].spreadcycle);
-    d->SGTHRS(cfg[i].sgt);                     // StallGuard threshold
-    // d->coolstep_en(cfg[i].coolstep);  // Pas disponible sur TMC2209
-    // d->stallguard(cfg[i].stallguard);  // Pas disponible sur TMC2209
-  }
-}
+// Fonction setupDriversTMC() maintenant dans MotorControl.cpp
 
 // Homing du slide via StallGuard4 (TMC2209)
 // StallGuard4 fonctionne en StealthChop (spreadCycle = false)
@@ -240,15 +178,15 @@ void home_slide() {
   sync_move.active = false;
   follow.enabled = false;
 
-  // Sauvegarder la configuration actuelle
-  long original_current = cfg[i].current_ma;
-  long original_accel = cfg[i].max_accel;
-  long original_speed = cfg[i].max_speed;
+  // Sauvegarder la configuration actuelle (TODO: utiliser MotorControl)
+  // long original_current = cfg[i].current_ma;
+  // long original_accel = cfg[i].max_accel;
+  // long original_speed = cfg[i].max_speed;
 
-  // Augmenter temporairement le courant (+20%)
-  long homing_current = original_current + (original_current * 20 / 100);
-  drivers[i]->rms_current(homing_current);
-  Serial.printf("⚡ Courant homing: %ld mA (+20%%)\n", homing_current);
+  // Augmenter temporairement le courant (+20%) (TODO: utiliser MotorControl)
+  // long homing_current = original_current + (original_current * 20 / 100);
+  // drivers[i]->rms_current(homing_current);
+  // Serial.printf("⚡ Courant homing: %ld mA (+20%%)\n", homing_current);
 
   // Configuration pour StallGuard4 (StealthChop requis)
   drivers[i]->en_spreadCycle(false);  // StealthChop pour StallGuard4
@@ -348,24 +286,24 @@ void home_slide() {
   // Définir position 0 au centre
   steppers[i]->setCurrentPosition(0);
   
-  // Calculer limites relatives au centre
-  cfg[i].min_limit = minPos - center;
-  cfg[i].max_limit = maxPos - center;
+  // Calculer limites relatives au centre (TODO: utiliser MotorControl)
+  // cfg[i].min_limit = minPos - center;
+  // cfg[i].max_limit = maxPos - center;
   
   Serial.printf("✅ Homing terminé!\n");
   Serial.printf("   Centre: %ld (position 0)\n", center);
-  Serial.printf("   Limites: [%ld, %ld]\n", cfg[i].min_limit, cfg[i].max_limit);
-  Serial.printf("   Course: %ld pas\n", cfg[i].max_limit - cfg[i].min_limit);
+  // Serial.printf("   Limites: [%ld, %ld]\n", cfg[i].min_limit, cfg[i].max_limit);  // TODO: utiliser MotorControl
+  // Serial.printf("   Course: %ld pas\n", cfg[i].max_limit - cfg[i].min_limit);  // TODO: utiliser MotorControl
 
   // ------------------ RESTAURATION CONFIG NORMALE ------------------
   Serial.println("🔄 Restauration configuration normale...");
   
-  // Restaurer courant normal
-  drivers[i]->rms_current(original_current);
+  // Restaurer courant normal (TODO: utiliser MotorControl)
+  // drivers[i]->rms_current(original_current);
   
-  // Restaurer vitesse/accel normales
-  steppers[i]->setAcceleration(original_accel);
-  steppers[i]->setSpeedInHz(original_speed);
+  // Restaurer vitesse/accel normales (TODO: utiliser MotorControl)
+  // steppers[i]->setAcceleration(original_accel);
+  // steppers[i]->setSpeedInHz(original_speed);
   
   // Le driver reste en StealthChop (spreadCycle = false) comme partout ailleurs
   // Pas besoin de restaurer le mode car on utilise StealthChop partout
@@ -463,7 +401,7 @@ uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long go
       double d = fabs((double)goal[i] - (double)start[i]);
       double v_need = d * 1.875 / T;          // steps/s
       double a_need = d * 5.7735 / (T*T);     // steps/s^2
-      if (v_need > cfg[i].max_speed*0.90 || a_need > cfg[i].max_accel*0.90){
+      if (v_need > 10000*0.90 || a_need > 5000*0.90){  // TODO: utiliser MotorControl
         // augmente T de 10%
         T *= 1.10;
         ok = false;
@@ -875,11 +813,7 @@ void coordinator_tick(){
   }
 }
 
-//==================== Variables globales ====================
-long panPos = 0;
-long tiltPos = 0;
-long zoomPos = 0;
-long slidePos = 0;
+// Variables de position maintenant dans MotorControl.cpp
 
 //==================== OSC ====================
 WiFiUDP udp;
@@ -1601,28 +1535,8 @@ void setup() {
   follow.enabled = false;
   slideAB.enabled = false;
   
-  // Initialiser l'engine
-  engine.init();
-  
-  // Configurer les drivers TMC
-  setupDriversTMC();
-
-  // Attacher les steppers
-  for (int i=0; i<NUM_MOTORS; i++) {
-    steppers[i] = engine.stepperConnectToPin(STEP_PINS[i]);
-    if (steppers[i]) {
-      Serial.println("✅ Stepper " + String(i) + " connected to pin " + String(STEP_PINS[i]));
-      steppers[i]->setDirectionPin(DIR_PINS[i]);
-      steppers[i]->setEnablePin(ENABLE_PINS[i], true);   // true = active LOW pour TMC2209
-      steppers[i]->setAutoEnable(false);                 // Garde les moteurs alimentés
-      steppers[i]->setSpeedInHz(cfg[i].max_speed);
-      steppers[i]->setAcceleration(cfg[i].max_accel);
-      steppers[i]->enableOutputs();                      // Force l'activation maintenant
-      Serial.println("✅ Stepper " + String(i) + " configured");
-    } else {
-      Serial.println("❌ Failed to connect stepper " + String(i));
-    }
-  }
+  // Initialiser les moteurs via le module MotorControl
+  initMotors();
   
   // WiFi Manager
   WiFiManager wm;
@@ -1658,11 +1572,8 @@ void loop() {
   // FastAccelStepper n'a pas besoin de engine.run()
   // Les moteurs se déplacent automatiquement
   
-  // Mettre à jour les positions
-  panPos = steppers[0]->getCurrentPosition();
-  tiltPos = steppers[1]->getCurrentPosition();
-  zoomPos = steppers[2]->getCurrentPosition();
-  slidePos = steppers[3]->getCurrentPosition();
+  // Mettre à jour les positions via le module MotorControl
+  updateMotorPositions();
 
   // Log périodique (console web + série)
   static unsigned long tlog = 0;
