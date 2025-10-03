@@ -13,14 +13,14 @@ const int ENABLE_PINS[NUM_MOTORS]  = {13, 14, 32, 33};
 
 //==================== Configuration des moteurs ====================
 MotorConfig cfg[NUM_MOTORS] = {
-  // PAN
-  {10000, 5000, -50000, 50000, false, 100},
-  // TILT
-  {10000, 5000, -50000, 50000, false, 100},
-  // ZOOM
-  {10000, 5000, -50000, 50000, false, 100},
-  // SLIDE
-  {10000, 5000, -50000, 50000, false, 100}
+  // PAN: {-27106, 27106, 1200, 16, 20000, 12000, 0, false, false, true}
+  {20000, 12000, -27106, 27106, 1200, 16, false, 100},
+  // TILT: {-2439, 2439, 1200, 16, 20000, 12000, 0, false, false, true}
+  {20000, 12000, -2439, 2439, 1200, 16, false, 100},
+  // ZOOM: {-20000, 20000, 400, 16, 20000, 8000, 0, false, false, true}
+  {20000, 8000, -20000, 20000, 400, 16, false, 100},
+  // SLIDE: {-20000, 20000, 1800, 8, 10000, 12000, 0, false, false, true}
+  {10000, 12000, -20000, 20000, 1800, 8, false, 100}
 };
 
 //==================== Objets moteurs ====================
@@ -59,6 +59,7 @@ void initMotors() {
       steppers[i]->setAutoEnable(false);                 // Garde les moteurs alimentés
       steppers[i]->setSpeedInHz(cfg[i].max_speed);
       steppers[i]->setAcceleration(cfg[i].max_accel);
+      steppers[i]->enableOutputs();                      // Force l'activation maintenant
       
       // Activer les moteurs
       digitalWrite(ENABLE_PINS[i], LOW);
@@ -83,8 +84,9 @@ void setupDriversTMC() {
     d->begin();
     d->toff(5);                        // Time off
     d->blank_time(24);                 // Blank time
-    d->rms_current(cfg[i].max_speed / 100);  // Courant RMS (approximatif)
-    d->microsteps(16);                 // Microsteps
+    d->rms_current(cfg[i].current_ma); // Courant RMS original
+    d->microsteps(cfg[i].microsteps);  // Microsteps original
+    d->pwm_autoscale(true);            // Pour StealthChop (crucial pour le courant RMS)
     d->en_spreadCycle(cfg[i].spreadcycle);
     d->SGTHRS(cfg[i].sgt);             // StallGuard threshold
     // d->coolstep_en(cfg[i].coolstep);  // Pas disponible sur TMC2209

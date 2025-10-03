@@ -44,6 +44,8 @@ struct MotorConfig {
   int max_accel;
   int min_limit;
   int max_limit;
+  int current_ma;    // Courant RMS en mA
+  int microsteps;    // Nombre de microsteps
   bool spreadcycle;
   int sgt;  // StallGuard threshold
 };
