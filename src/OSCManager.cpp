@@ -3,6 +3,7 @@
 #include "MotorControl.h"
 #include "Joystick.h"
 #include "Presets.h"
+#include "Tracking.h"
 #include "MotionPlanner.h"
 #include "Homing.h"
 #include "Utils.h"

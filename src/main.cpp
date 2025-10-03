@@ -44,10 +44,8 @@
 // Les structures Follow et AnchorMorph sont maintenant dans le module Tracking
 
 // Politique de recall du slide
-enum class SlideRecallPolicy : uint8_t { KEEP_AB = 0, GOTO_THEN_RESUME = 1 };
-struct RecallPolicy {
-  SlideRecallPolicy slide = SlideRecallPolicy::KEEP_AB;
-} recallPolicy;
+// Les déclarations sont maintenant dans OSCManager.h
+RecallPolicy recallPolicy;
 
 //==================== Homing Slide (StallGuard) ====================
 // Variables de homing maintenant dans le module Homing.h
