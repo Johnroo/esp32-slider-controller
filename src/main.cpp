@@ -19,6 +19,7 @@
 #include "Joystick.h"
 #include "Utils.h"
 #include "Config.h"
+#include "NetworkManager.h"
 
 //==================== Configuration ====================
 
@@ -993,14 +994,9 @@ void setup() {
   // Initialiser le module joystick
   initJoystick();
   
-  // WiFi Manager
-  WiFiManager wm;
-  wm.autoConnect("ESP32-Slider");
-  
-  Serial.println("📡 WiFi connected: " + WiFi.localIP().toString());
-  
-  // OTA
-  ArduinoOTA.begin();
+  // Initialiser le réseau (WiFi + OTA)
+  initNetwork();
+  initOTA();
   
   // Web Server
   setupWebServer();
@@ -1019,7 +1015,7 @@ void setup() {
 
 //==================== Loop ====================
 void loop() {
-  ArduinoOTA.handle();
+  handleOTA();
   processOSC();
   updateJoystick();    // NEW: Pipeline joystick avec lissage
   coordinator_tick();  // NEW: Orchestrateur de mouvements synchronisés
