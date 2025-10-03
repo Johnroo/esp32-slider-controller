@@ -15,6 +15,7 @@
 #include "Homing.h"
 #include "Presets.h"
 #include "Tracking.h"
+#include "MotionPlanner.h"
 #include "Utils.h"
 
 //==================== Configuration ====================
@@ -54,14 +55,7 @@ static inline long active_tilt_offset(bool recall_phase){
 
 // Les constantes de mapping sont maintenant dans le module Tracking
 
-// Mouvement synchronisé en cours
-struct SyncMove {
-  bool  active = false;
-  uint32_t t0_ms = 0;
-  uint32_t T_ms  = 2000;      // durée demandée
-  long start[NUM_MOTORS];
-  long goal_base[NUM_MOTORS]; // cible sans offsets/couplages
-} sync_move;
+// La structure SyncMove et la variable sync_move sont maintenant dans le module MotionPlanner
 
 // Politique d'annulation des presets
 struct CancelPolicy { 
@@ -189,26 +183,7 @@ void joystick_tick(){
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 }
 
-//==================== NEW: Planificateur "temps commun" ====================
-uint32_t pick_duration_ms_for_deltas(const long start[NUM_MOTORS], const long goal[NUM_MOTORS], uint32_t T_req_ms){
-  double T = T_req_ms / 1000.0;
-  for(;;){
-    bool ok = true;
-    for(int i=0;i<NUM_MOTORS;i++){
-      double d = fabs((double)goal[i] - (double)start[i]);
-      double v_need = d * 1.875 / T;          // steps/s
-      double a_need = d * 5.7735 / (T*T);     // steps/s^2
-      if (v_need > 10000*0.90 || a_need > 5000*0.90){  // TODO: utiliser MotorControl
-        // augmente T de 10%
-        T *= 1.10;
-        ok = false;
-        break;
-      }
-    }
-    if (ok) break;
-  }
-  return (uint32_t)lround(T*1000.0);
-}
+// La fonction pick_duration_ms_for_deltas est maintenant dans le module MotionPlanner
 
 //==================== Bank Management Functions ====================
 // La fonction saveBank est maintenant dans le module Presets
@@ -360,56 +335,7 @@ void coordinator_tick(){
   }
 
   // 2) Mouvement synchronisé
-  if (sync_move.active){
-    float tau = (float)(now - sync_move.t0_ms) / (float)sync_move.T_ms;
-    if (tau >= 1.0f){
-      // Fin de mouvement
-      sync_move.active = false;
-      follow.valid = false;   // re-anchor next time
-      
-      // Rephase AB après GOTO_THEN_RESUME pour éviter un saut
-      if (recallPolicy.slide == SlideRecallPolicy::GOTO_THEN_RESUME && slideAB.enabled) {
-        slideAB.t0_ms = millis();
-        long current_slide = steppers[3]->getCurrentPosition();
-        slideAB.dir = (abs(current_slide - slideAB.A) < abs(current_slide - slideAB.B)) ? +1 : -1;
-        Serial.println("🔄 AB rephased after GOTO_THEN_RESUME");
-      }
-      
-      tau = 1.0f;
-    }
-    float s = s_minjerk(tau);
-
-    // Slide de référence (pour couplage)
-    long slide_ref = (long)lround( sync_move.start[3] + (sync_move.goal_base[3] - sync_move.start[3]) * s );
-    slide_ref = clampL(slide_ref, cfg[3].min_limit, cfg[3].max_limit);
-
-    // Compensations en fonction du slide + offsets joystick (toujours actifs)
-    long pan_comp  = panCompFromSlide(slide_ref);
-    long tilt_comp = tiltCompFromSlide(slide_ref);
-
-    long pan_goal  = sync_move.goal_base[0] + pan_comp + eff_pan_offset();
-    long tilt_goal = sync_move.goal_base[1] + tilt_comp + eff_tilt_offset();
-    long zoom_goal = sync_move.goal_base[2];
-    long slide_goal= sync_move.goal_base[3];
-
-    // Cibles "à l'instant" suivant s(t)
-    long P = (long)lround( sync_move.start[0] + (pan_goal  - sync_move.start[0]) * s );
-    long T = (long)lround( sync_move.start[1] + (tilt_goal - sync_move.start[1]) * s );
-    long Z = (long)lround( sync_move.start[2] + (zoom_goal - sync_move.start[2]) * s );
-    long S = (long)lround( sync_move.start[3] + (slide_goal- sync_move.start[3]) * s );
-
-    // Clip limites
-    P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
-    T = clampL(T, cfg[1].min_limit, cfg[1].max_limit);
-    Z = clampL(Z, cfg[2].min_limit, cfg[2].max_limit);
-    S = clampL(S, cfg[3].min_limit, cfg[3].max_limit);
-
-    // On pousse les cibles. FastAccelStepper replanifie en douceur.
-    steppers[0]->moveTo(P);
-    steppers[1]->moveTo(T);
-    steppers[2]->moveTo(Z);
-    steppers[3]->moveTo(S);
-  }
+  updateMotionPlanner();
 }
 
 // Variables de position maintenant dans MotorControl.cpp
@@ -452,8 +378,8 @@ void processOSC() {
       // Joystick en OSC (-1..+1)
       msg.dispatch("/pan", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -461,8 +387,8 @@ void processOSC() {
       });
       msg.dispatch("/tilt", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -470,8 +396,8 @@ void processOSC() {
       });
       msg.dispatch("/joy/pt", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -480,8 +406,8 @@ void processOSC() {
       });
       msg.dispatch("/slide/jog", [](OSCMessage &m){ 
         // Annuler preset selon la politique
-        if (cancel.by_joystick && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_joystick && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Cancel by joystick");
         }
         
@@ -571,7 +497,7 @@ void processOSC() {
           
           // Désactiver modes concurrents
           slideAB.enabled = false;
-          sync_move.active = false;
+          stopSynchronizedMove();
           follow.valid = false;
           
           Serial.printf("▶️ Interpolation auto ON (T=%u ms, %.1fs)\n", T_ms, duration);
@@ -586,7 +512,7 @@ void processOSC() {
         
         // Annuler modes auto
         interpAuto.active = false;
-        sync_move.active = false;
+        stopSynchronizedMove();
         slideAB.enabled = false;
         
         // Calculer position interpolée
@@ -608,7 +534,7 @@ void processOSC() {
         
         // Annuler les mouvements automatiques ou presets en cours
         interpAuto.active = false;
-        sync_move.active = false;
+        stopSynchronizedMove();
         slideAB.enabled = false;
         follow.valid = false;
         
@@ -619,8 +545,8 @@ void processOSC() {
       
       msg.dispatch("/axis_pan", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -634,8 +560,8 @@ void processOSC() {
       
       msg.dispatch("/axis_tilt", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -649,8 +575,8 @@ void processOSC() {
       
       msg.dispatch("/axis_zoom", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -664,8 +590,8 @@ void processOSC() {
       
       msg.dispatch("/axis_slide", [](OSCMessage &msg) {
         // Annuler preset selon la politique
-        if (cancel.by_axis && sync_move.active) {
-          sync_move.active = false;
+        if (cancel.by_axis && isSynchronizedMoveActive()) {
+          stopSynchronizedMove();
           Serial.println("⏹️ Manual override: cancel preset");
         }
         
@@ -891,18 +817,11 @@ void processOSC() {
         {
           // Mouvement synchronisé normal (ABSOLUTE ou policy GOTO_THEN_RESUME)
           long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
-
-          for(int ax=0; ax<NUM_MOTORS; ++ax){
-            sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
-            sync_move.goal_base[ax] = clampL(base_goal[ax], cfg[ax].min_limit, cfg[ax].max_limit);
+          
+          if (planSynchronizedMove(base_goal, Tms_req)) {
+            Serial.printf("\xE2\x96\xBA Recall(ABS): P:%ld T:%ld Z:%ld S:%ld\n",
+                          base_goal[0], base_goal[1], base_goal[2], base_goal[3]);
           }
-
-          sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
-          sync_move.t0_ms = millis();
-          sync_move.active = true;
-          Serial.printf("\xE2\x96\xBA Recall(ABS): P:%ld T:%ld Z:%ld S:%ld in %u ms\n",
-                        sync_move.goal_base[0], sync_move.goal_base[1],
-                        sync_move.goal_base[2], sync_move.goal_base[3], sync_move.T_ms);
         }
       });
 
@@ -914,15 +833,11 @@ void processOSC() {
         float Tsec = m.getFloat(1); if (Tsec <= 0) Tsec = 2.0f;
 
         long s_goal = (long)lround(lerp(cfg[3].min_limit, cfg[3].max_limit, u));
-        // Construire un "preset" ad-hoc qui ne bouge que le slide
-        for(int ax=0; ax<NUM_MOTORS; ++ax){
-          sync_move.start[ax]     = steppers[ax]->getCurrentPosition();
-          sync_move.goal_base[ax] = (ax==3) ? s_goal : sync_move.start[ax];
-        }
         uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
-        sync_move.T_ms = pick_duration_ms_for_deltas(sync_move.start, sync_move.goal_base, Tms_req);
-        sync_move.t0_ms = millis();
-        sync_move.active = true;
+        
+        if (planSlideMove(s_goal, Tsec)) {
+          Serial.printf("🎬 Slide goto: %ld (%.1f%%)\n", s_goal, u * 100.0f);
+        }
       });
 
       // Config: ranges offsets et mapping slide->pan/tilt
@@ -961,11 +876,9 @@ void processOSC() {
       });
       
       msg.dispatch("/offset/bake", [](OSCMessage &m){
-        if (sync_move.active){
+        if (isSynchronizedMoveActive()){
           // Intègre l'offset actuel dans la goal_base du preset
-          sync_move.goal_base[0] = clampL(sync_move.goal_base[0] + pan_offset_latched,  cfg[0].min_limit, cfg[0].max_limit);
-          sync_move.goal_base[1] = clampL(sync_move.goal_base[1] + tilt_offset_latched, cfg[1].min_limit, cfg[1].max_limit);
-          Serial.println("🍞 Bake offsets into preset: pan=" + String(sync_move.goal_base[0]) + ", tilt=" + String(sync_move.goal_base[1]));
+          bakeOffsetsIntoCurrentMove(pan_offset_latched, tilt_offset_latched);
         }
         pan_offset_latched  = 0;
         tilt_offset_latched = 0;
@@ -1010,7 +923,7 @@ void setupWebServer() {
     
     // État des modes actifs
     doc["modes"]["interpAuto"] = interpAuto.active;
-    doc["modes"]["syncMove"] = sync_move.active;
+    doc["modes"]["syncMove"] = isSynchronizedMoveActive();
     doc["modes"]["slideAB"] = slideAB.enabled;
     
     // Banque active
@@ -1148,6 +1061,9 @@ void setup() {
   
   // Initialiser le système de suivi
   initTracking();
+  
+  // Initialiser le planificateur de mouvements
+  initMotionPlanner();
   
   // WiFi Manager
   WiFiManager wm;
