@@ -54,10 +54,10 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 #define DEFAULT_SLIDE_ACCEL  12000
 
 // Courants par défaut (mA)
-#define DEFAULT_PAN_CURRENT    20000
-#define DEFAULT_TILT_CURRENT   20000
-#define DEFAULT_ZOOM_CURRENT   20000
-#define DEFAULT_SLIDE_CURRENT  10000
+#define DEFAULT_PAN_CURRENT    1700
+#define DEFAULT_TILT_CURRENT   1700
+#define DEFAULT_ZOOM_CURRENT   400
+#define DEFAULT_SLIDE_CURRENT  1600
 
 // Microstepping par défaut
 #define DEFAULT_PAN_MICROSTEPS    16
@@ -128,11 +128,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 
 //==================== Configuration du suivi ====================
 
-// Mapping slide -> pan/tilt par défaut
-#define DEFAULT_PAN_AT_SLIDE_MIN   800   // steps
-#define DEFAULT_PAN_AT_SLIDE_MAX  -800   // steps
-#define DEFAULT_TILT_AT_SLIDE_MIN  0     // steps
-#define DEFAULT_TILT_AT_SLIDE_MAX  0     // steps
+// Mapping slide -> pan/tilt supprimé (mode follow obsolète)
 
 //==================== Variables globales configurables ====================
 

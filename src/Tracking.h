@@ -12,11 +12,7 @@
 #include "Config.h"
 
 //==================== Constantes de configuration ====================
-// Mapping linéaire slide -> compensation pan/tilt (en steps)
-extern long PAN_AT_SLIDE_MIN;   // ex: +800 à gauche
-extern long PAN_AT_SLIDE_MAX;   // ex: -800 à droite
-extern long TILT_AT_SLIDE_MIN;  // ex: 0
-extern long TILT_AT_SLIDE_MAX;  // ex: 0
+// Mapping slide->pan/tilt supprimé (mode follow obsolète)
 
 //==================== Structures de données ====================
 struct AnchorMorph {
@@ -65,32 +61,6 @@ void stopAnchorMorph();
  */
 bool isAnchorMorphActive();
 
-/**
- * @brief Définit les paramètres de mapping pan
- * @param min Compensation pan au slide minimum
- * @param max Compensation pan au slide maximum
- */
-void setPanMapping(long min, long max);
-
-/**
- * @brief Définit les paramètres de mapping tilt
- * @param min Compensation tilt au slide minimum
- * @param max Compensation tilt au slide maximum
- */
-void setTiltMapping(long min, long max);
-
-/**
- * @brief Obtient les paramètres de mapping pan
- * @param min Référence pour la compensation pan minimum
- * @param max Référence pour la compensation pan maximum
- */
-void getPanMapping(long &min, long &max);
-
-/**
- * @brief Obtient les paramètres de mapping tilt
- * @param min Référence pour la compensation tilt minimum
- * @param max Référence pour la compensation tilt maximum
- */
-void getTiltMapping(long &min, long &max);
+// Fonctions de mapping slide->pan/tilt supprimées (mode follow obsolète)
 
 #endif // TRACKING_H

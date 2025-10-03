@@ -10,11 +10,7 @@
 #include "Utils.h"
 
 //==================== Constantes de configuration ====================
-// Utilise les constantes par défaut du module Config
-long PAN_AT_SLIDE_MIN  = DEFAULT_PAN_AT_SLIDE_MIN;
-long PAN_AT_SLIDE_MAX  = DEFAULT_PAN_AT_SLIDE_MAX;
-long TILT_AT_SLIDE_MIN = DEFAULT_TILT_AT_SLIDE_MIN;
-long TILT_AT_SLIDE_MAX = DEFAULT_TILT_AT_SLIDE_MAX;
+// Variables de mapping slide->pan/tilt supprimées (mode follow obsolète)
 
 //==================== Variables globales ====================
 AnchorMorph anchor_morph;
@@ -91,36 +87,4 @@ bool isAnchorMorphActive() {
   return anchor_morph.active;
 }
 
-/**
- * @brief Définit les paramètres de mapping pan
- */
-void setPanMapping(long min, long max) {
-  PAN_AT_SLIDE_MIN = min;
-  PAN_AT_SLIDE_MAX = max;
-  Serial.printf("🎯 Mapping Pan mis à jour: min=%ld, max=%ld\n", min, max);
-}
-
-/**
- * @brief Définit les paramètres de mapping tilt
- */
-void setTiltMapping(long min, long max) {
-  TILT_AT_SLIDE_MIN = min;
-  TILT_AT_SLIDE_MAX = max;
-  Serial.printf("🎯 Mapping Tilt mis à jour: min=%ld, max=%ld\n", min, max);
-}
-
-/**
- * @brief Obtient les paramètres de mapping pan
- */
-void getPanMapping(long &min, long &max) {
-  min = PAN_AT_SLIDE_MIN;
-  max = PAN_AT_SLIDE_MAX;
-}
-
-/**
- * @brief Obtient les paramètres de mapping tilt
- */
-void getTiltMapping(long &min, long &max) {
-  min = TILT_AT_SLIDE_MIN;
-  max = TILT_AT_SLIDE_MAX;
-}
+// Implémentations des fonctions de mapping slide->pan/tilt supprimées (mode follow obsolète)
