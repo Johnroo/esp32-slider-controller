@@ -131,11 +131,11 @@ void printConfig() {
   Serial.printf("  - UART TX/RX: %d/%d\n", UART_TX, UART_RX);
   Serial.printf("  - R_SENSE: %.2f\n", R_SENSE);
   
-  Serial.printf("🎯 Vitesses de jog: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
-                PAN_JOG_SPEED, TILT_JOG_SPEED, SLIDE_JOG_SPEED);
+  Serial.printf("🎯 Vitesses de jog: Pan=%.0f Tilt=%.0f Zoom=%.0f Slide=%.0f steps/s\n", 
+                PAN_JOG_SPEED, TILT_JOG_SPEED, ZOOM_JOG_SPEED, SLIDE_JOG_SPEED);
   
-  Serial.printf("📏 Ranges d'offsets: Pan=%ld Tilt=%ld\n", 
-                PAN_OFFSET_RANGE, TILT_OFFSET_RANGE);
+  Serial.printf("📏 Ranges d'offsets: Pan=%ld Tilt=%ld Zoom=%ld Slide=%ld\n", 
+                PAN_OFFSET_RANGE, TILT_OFFSET_RANGE, ZOOM_OFFSET_RANGE, SLIDE_OFFSET_RANGE);
   
   Serial.printf("⏱️ Durée par défaut: %u ms\n", DEFAULT_MOVE_DURATION_MS);
   
