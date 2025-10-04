@@ -121,20 +121,28 @@ void updateJoystick() {
   slide_offset_steps = slide_offset_latched;
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 
-  // --- Recalage dynamique du mouvement en cours ---
-  if (isActive() || isInterpolationActive()) {
-      static uint32_t lastBake = 0;
-      uint32_t now = millis();
-      // Pour ne pas saturer le planificateur, on "bake" toutes les 100 ms pendant que le joystick bouge
-      if (now - lastBake > 100) {
-          bakeOffsetsIntoCurrentMove(
-              pan_offset_latched,
-              tilt_offset_latched,
-              zoom_offset_latched,
-              slide_offset_latched
-          );
-          lastBake = now;
-      }
+  // --- Bake "propre" et anti-accumulation (seuil + reset) ---
+  const float BAKE_THRESH = 0.03f;       // ~3% deflection pour déclencher
+  const uint32_t BAKE_COOLDOWN_MS = 120; // anti-rafale
+  static uint32_t lastBake = 0;
+
+  bool moving = (fabsf(joy_filt.pan)  > BAKE_THRESH) ||
+                (fabsf(joy_filt.tilt) > BAKE_THRESH) ||
+                (fabsf(joy_filt.zoom) > BAKE_THRESH) ||
+                (fabsf(joy_filt.slide)> BAKE_THRESH);
+
+  uint32_t now = millis();
+  if (moving && (isActive() || isInterpolationActive()) && (now - lastBake > BAKE_COOLDOWN_MS)) {
+    // 1) Intégrer les offsets dans la cible du mouvement courant (recall) 
+    //    ou mettre à jour les offsets persistants côté interpolation (si tu as ajouté Prompt #15)
+    bakeOffsetsIntoCurrentMove(pan_offset_latched, tilt_offset_latched,
+                               zoom_offset_latched, slide_offset_latched);
+
+    // 2) Remettre à zéro les latched pour ne pas réadditionner au prochain bake
+    resetLatchedOffsets();
+    saveOffsetBaseline();   // baseline = 0 pour la suite
+
+    lastBake = now;
   }
 
   // --- Gestion du relâchement joystick : bake non destructif ---
