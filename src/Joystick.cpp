@@ -120,6 +120,25 @@ void updateJoystick() {
   zoom_offset_steps  = zoom_offset_latched;
   slide_offset_steps = slide_offset_latched;
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
+
+  // --- Gestion du relâchement joystick : bake non destructif ---
+  static bool wasMoving = false;
+  bool isMoving = (fabsf(joy_filt.pan) > 0.01f ||
+                   fabsf(joy_filt.tilt) > 0.01f ||
+                   fabsf(joy_filt.zoom) > 0.01f ||
+                   fabsf(joy_filt.slide) > 0.01f);
+
+  if (wasMoving && !isMoving) {
+      Serial.println("🍞 Bake non destructif des offsets dans la base du mouvement");
+      bakeOffsetsIntoCurrentMove(
+          pan_offset_latched, 
+          tilt_offset_latched, 
+          zoom_offset_latched, 
+          slide_offset_latched
+      );
+      saveOffsetBaseline(); // garde cette nouvelle base comme référence
+  }
+  wasMoving = isMoving;
 }
 
 /**
