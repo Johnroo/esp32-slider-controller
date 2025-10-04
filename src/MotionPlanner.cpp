@@ -152,6 +152,9 @@ void stopSynchronizedMove() {
 /**
  * @brief Vérifie si un mouvement synchronisé est en cours
  */
+bool isActive() {
+  return sync_move.active;
+}
 
 /**
  * @brief Calcule la durée optimale pour un mouvement
@@ -182,11 +185,14 @@ uint32_t calculateOptimalDuration(const long startPositions[NUM_MOTORS],
 /**
  * @brief Intègre les offsets dans la cible du mouvement en cours
  */
-void bakeOffsetsIntoCurrentMove(long panOffset, long tiltOffset) {
+void bakeOffsetsIntoCurrentMove(long panOffset, long tiltOffset, long zoomOffset, long slideOffset) {
   if (sync_move.active) {
     sync_move.goal_base[0] = clampL(sync_move.goal_base[0] + panOffset, cfg[0].min_limit, cfg[0].max_limit);
     sync_move.goal_base[1] = clampL(sync_move.goal_base[1] + tiltOffset, cfg[1].min_limit, cfg[1].max_limit);
-    Serial.printf("🍞 Offsets intégrés: pan=%ld, tilt=%ld\n", sync_move.goal_base[0], sync_move.goal_base[1]);
+    sync_move.goal_base[2] = clampL(sync_move.goal_base[2] + zoomOffset, cfg[2].min_limit, cfg[2].max_limit);
+    sync_move.goal_base[3] = clampL(sync_move.goal_base[3] + slideOffset, cfg[3].min_limit, cfg[3].max_limit);
+    Serial.printf("🍞 Offsets intégrés: pan=%ld, tilt=%ld, zoom=%ld, slide=%ld\n", 
+                  sync_move.goal_base[0], sync_move.goal_base[1], sync_move.goal_base[2], sync_move.goal_base[3]);
   }
 }
 

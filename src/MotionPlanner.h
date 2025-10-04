@@ -64,6 +64,7 @@ void stopSynchronizedMove();
  * @brief Vérifie si un mouvement synchronisé est en cours
  * @return true si actif, false sinon
  */
+bool isActive();
 
 /**
  * @brief Calcule la durée optimale pour un mouvement
@@ -81,7 +82,7 @@ uint32_t calculateOptimalDuration(const long startPositions[NUM_MOTORS],
  * @param panOffset Offset pan à intégrer
  * @param tiltOffset Offset tilt à intégrer
  */
-void bakeOffsetsIntoCurrentMove(long panOffset, long tiltOffset);
+void bakeOffsetsIntoCurrentMove(long panOffset, long tiltOffset, long zoomOffset, long slideOffset);
 
 /**
  * @brief Obtient l'état du mouvement synchronisé
