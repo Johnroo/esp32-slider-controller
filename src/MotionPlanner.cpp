@@ -75,12 +75,6 @@ void updateMotionPlanner() {
   long Z = (long)lround( sync_move.start[2] + (zoom_goal - sync_move.start[2]) * s );
   long S = (long)lround( sync_move.start[3] + (slide_goal- sync_move.start[3]) * s );
   
-  // Ajouter les offsets joystick
-  P += getEffectivePanOffset(true);
-  T += getEffectiveTiltOffset(true);
-  Z += getEffectiveZoomOffset(true);
-  S += getEffectiveSlideOffset(true);
-  
   // Clip limites
   P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
   T = clampL(T, cfg[1].min_limit, cfg[1].max_limit);
