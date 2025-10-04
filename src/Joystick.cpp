@@ -96,7 +96,9 @@ void updateJoystick() {
   joy_filt.slide = slewLimit(joy_filt.slide, iir1Pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
 
   // Intégration des offsets joystick (comportement "latched")
-  if (isActive() || isSlideActive()) {
+  // Variante sûre : offsets actifs dans TOUS les modes utiles
+  if (isActive() || isInterpolationActive() || fabs(interp_jog_cmd) > 0.001f
+      || isPanActive() || isTiltActive() || isSlideActive()) {
     // Vitesse d'empilement en steps/s à |joy|=1 (30% de la Vmax de l'axe)
     const float PAN_OFFSET_RATE  = cfg[0].max_speed * 1.0f;  // steps/s
     const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.7f;  // steps/s
