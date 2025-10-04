@@ -8,6 +8,12 @@
 #include "Utils.h"
 #include <ArduinoJson.h>
 
+// Déclarations externes pour les offsets persistants
+extern long interp_offset_p;
+extern long interp_offset_t;
+extern long interp_offset_z;
+extern long interp_offset_s;
+
 // Variables statiques
 WiFiUDP OSCManager::udp;
 OSCErrorCode OSCManager::error;
@@ -168,6 +174,7 @@ void OSCManager::handlePresetRoutes(OSCMessage &msg) {
         // Réinitialiser tous les offsets avant le recall
         resetLatchedOffsets();
         saveOffsetBaseline();
+        interp_offset_p = interp_offset_t = interp_offset_z = interp_offset_s = 0;
         Serial.println("🔄 Offsets joystick réinitialisés au début du preset recall");
 
         uint32_t Tms_req = (uint32_t)lround(Tsec * 1000.0);
@@ -283,6 +290,7 @@ void OSCManager::handleBankRoutes(OSCMessage &msg) {
                 // Réinitialiser les offsets joystick au changement de banque
                 resetLatchedOffsets();
                 saveOffsetBaseline();
+                interp_offset_p = interp_offset_t = interp_offset_z = interp_offset_s = 0;
                 Serial.println("🔄 Offsets joystick réinitialisés au changement de banque");
 
                 Serial.printf("🏦 Banque active changée vers %d\n", idx);
@@ -489,6 +497,7 @@ void OSCManager::handleOffsetRoutes(OSCMessage &msg) {
     msg.dispatch("/offset/reset_all", [](OSCMessage &m){
         resetLatchedOffsets();
         saveOffsetBaseline();
+        interp_offset_p = interp_offset_t = interp_offset_z = interp_offset_s = 0;
         Serial.println("🔄 Tous les offsets joystick réinitialisés manuellement");
     });
 }

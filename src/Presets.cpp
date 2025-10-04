@@ -10,6 +10,9 @@
 #include "Utils.h"
 #include "Joystick.h"
 
+// Déclaration externe pour joy_filt
+extern JoyState joy_filt;
+
 //==================== Variables globales ====================
 Preset presets[MAX_PRESETS];
 int activePreset = -1;
@@ -20,6 +23,12 @@ uint8_t activeBank = 0;
 Preferences nvs;
 InterpAuto interpAuto;
 float interp_jog_cmd = 0.0f;
+
+// Offsets persistants pendant l'interpolation (auto ou jog)
+long interp_offset_p = 0;
+long interp_offset_t = 0;
+long interp_offset_z = 0;
+long interp_offset_s = 0;
 
 //==================== Fonctions du module ====================
 
@@ -254,11 +263,11 @@ void updateInterpolation() {
     long P, T, Z, S;
     computeInterpolatedPosition(u, P, T, Z, S);
     
-    // Ajouter les offsets joystick
-    P += getEffectivePanOffset(true);
-    T += getEffectiveTiltOffset(true);
-    Z += getEffectiveZoomOffset(true);
-    S += getEffectiveSlideOffset(true);
+    // Ajouter les offsets persistants + offsets joystick instantanés
+    P += interp_offset_p + getEffectivePanOffset(true);
+    T += interp_offset_t + getEffectiveTiltOffset(true);
+    Z += interp_offset_z + getEffectiveZoomOffset(true);
+    S += interp_offset_s + getEffectiveSlideOffset(true);
     
     // Clamp limites
     P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
@@ -318,6 +327,12 @@ void computeInterpolatedPosition(float u, long &P, long &T, long &Z, long &S) {
  */
 void startInterpolation(float duration) {
   if (duration > 0.0f) {
+    // Réinitialiser les offsets persistants
+    interp_offset_p = 0;
+    interp_offset_t = 0;
+    interp_offset_z = 0;
+    interp_offset_s = 0;
+    
     uint32_t T_ms = (uint32_t)lround(duration * 1000);
     interpAuto.T_ms = T_ms;
     interpAuto.t0_ms = millis();
@@ -372,11 +387,11 @@ void updateInterpolationJog() {
     long P, T, Z, S;
     computeInterpolatedPosition(u, P, T, Z, S);
     
-    // Ajouter les offsets joystick
-    P += getEffectivePanOffset(true);
-    T += getEffectiveTiltOffset(true);
-    Z += getEffectiveZoomOffset(true);
-    S += getEffectiveSlideOffset(true);
+    // Ajouter les offsets persistants + offsets joystick instantanés
+    P += interp_offset_p + getEffectivePanOffset(true);
+    T += interp_offset_t + getEffectiveTiltOffset(true);
+    Z += interp_offset_z + getEffectiveZoomOffset(true);
+    S += interp_offset_s + getEffectiveSlideOffset(true);
     
     // Clamp limites
     P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
@@ -390,6 +405,15 @@ void updateInterpolationJog() {
         baselineSaved = true;
     }
     if (fabs(interp_jog_cmd) < 0.001f) baselineSaved = false;
+    
+    // Mise à jour des offsets persistants pendant que le joystick bouge
+    if (fabsf(joy_filt.pan) > 0.01f || fabsf(joy_filt.tilt) > 0.01f ||
+        fabsf(joy_filt.zoom) > 0.01f || fabsf(joy_filt.slide) > 0.01f) {
+        interp_offset_p = pan_offset_latched;
+        interp_offset_t = tilt_offset_latched;
+        interp_offset_z = zoom_offset_latched;
+        interp_offset_s = slide_offset_latched;
+    }
     
     steppers[0]->moveTo(P);
     steppers[1]->moveTo(T);
