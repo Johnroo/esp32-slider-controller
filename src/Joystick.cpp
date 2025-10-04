@@ -16,7 +16,6 @@ JoyCfg joy;
 JoyState joy_raw;      // alimenté par l'OSC
 JoyState joy_cmd;       // après deadzone/expo
 JoyState joy_filt;      // après filtrage
-CancelPolicy cancel;
 OffsetSession offset_session;
 
 // Offsets joystick (en steps)
@@ -63,9 +62,6 @@ void initJoystick() {
   offset_session.pan0 = 0;
   offset_session.tilt0 = 0;
   
-  // Initialiser la politique d'annulation
-  cancel.by_joystick = false;
-  cancel.by_axis = true;
   
   Serial.println("✅ Module joystick initialisé");
 }
@@ -238,16 +234,6 @@ void setJoystickConfig(const JoyCfg& config) {
 /**
  * @brief Obtient la politique d'annulation
  */
-CancelPolicy& getCancelPolicy() {
-  return cancel;
-}
-
-/**
- * @brief Définit la politique d'annulation
- */
-void setCancelPolicy(const CancelPolicy& policy) {
-  cancel = policy;
-}
 
 // Les fonctions getOffsetRanges, setOffsetRanges, getJogSpeeds, setJogSpeeds 
 // sont maintenant dans le module Config

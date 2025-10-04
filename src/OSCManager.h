@@ -7,11 +7,6 @@
 #include <OSCData.h>
 
 // Déclarations externes pour les variables et fonctions définies dans main.cpp
-enum class SlideRecallPolicy : uint8_t { KEEP_AB = 0, GOTO_THEN_RESUME = 1 };
-struct RecallPolicy {
-  SlideRecallPolicy slide = SlideRecallPolicy::KEEP_AB;
-};
-extern struct RecallPolicy recallPolicy;
 extern void saveActiveBank();
 extern void home_slide();
 

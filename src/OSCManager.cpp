@@ -58,46 +58,22 @@ void OSCManager::processOSC() {
 void OSCManager::handleJoystickRoutes(OSCMessage &msg) {
     // Joystick en OSC (-1..+1)
     msg.dispatch("/pan", [](OSCMessage &m){ 
-        // Annuler preset selon la politique
-        if (cancel.by_joystick && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Cancel by joystick");
-        }
-        
         float pan = clampF(m.getFloat(0), -1.f, +1.f);
         setRawJoystickValues(pan, joy_raw.tilt, joy_raw.slide);
     });
     
     msg.dispatch("/tilt", [](OSCMessage &m){ 
-        // Annuler preset selon la politique
-        if (cancel.by_joystick && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Cancel by joystick");
-        }
-        
         float tilt = clampF(m.getFloat(0), -1.f, +1.f);
         setRawJoystickValues(joy_raw.pan, tilt, joy_raw.slide);
     });
     
     msg.dispatch("/joy/pt", [](OSCMessage &m){ 
-        // Annuler preset selon la politique
-        if (cancel.by_joystick && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Cancel by joystick");
-        }
-        
         float pan = clampF(m.getFloat(0), -1.f, +1.f);
         float tilt = clampF(m.getFloat(1), -1.f, +1.f);
         setRawJoystickValues(pan, tilt, joy_raw.slide);
     });
     
     msg.dispatch("/slide/jog", [](OSCMessage &m){ 
-        // Annuler preset selon la politique
-        if (cancel.by_joystick && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Cancel by joystick");
-        }
-        
         float slide = clampF(m.getFloat(0), -1.f, +1.f);
         setRawJoystickValues(joy_raw.pan, joy_raw.tilt, slide);
     });
@@ -117,24 +93,10 @@ void OSCManager::handleJoystickRoutes(OSCMessage &msg) {
                       config.slide_speed);
     });
     
-    // Configuration de la politique d'annulation
-    msg.dispatch("/preset/cancel_policy", [](OSCMessage &m){
-        CancelPolicy policy = getCancelPolicy();
-        if (m.size() > 0) policy.by_joystick = m.getInt(0) != 0;
-        if (m.size() > 1) policy.by_axis = m.getInt(1) != 0;
-        setCancelPolicy(policy);
-        Serial.printf("⚙️ Cancel policy: joystick=%d axis=%d\n", policy.by_joystick, policy.by_axis);
-    });
 }
 
 void OSCManager::handleAxisRoutes(OSCMessage &msg) {
     msg.dispatch("/axis_pan", [](OSCMessage &msg) {
-        // Annuler preset selon la politique
-        if (cancel.by_axis && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Manual override: cancel preset");
-        }
-        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[0].max_limit - cfg[0].min_limit) + cfg[0].min_limit);
         Serial.println("🔧 Moving Pan to: " + String(pos_val));
@@ -144,12 +106,6 @@ void OSCManager::handleAxisRoutes(OSCMessage &msg) {
     });
     
     msg.dispatch("/axis_tilt", [](OSCMessage &msg) {
-        // Annuler preset selon la politique
-        if (cancel.by_axis && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Manual override: cancel preset");
-        }
-        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[1].max_limit - cfg[1].min_limit) + cfg[1].min_limit);
         Serial.println("🔧 Moving Tilt to: " + String(pos_val));
@@ -159,12 +115,6 @@ void OSCManager::handleAxisRoutes(OSCMessage &msg) {
     });
     
     msg.dispatch("/axis_zoom", [](OSCMessage &msg) {
-        // Annuler preset selon la politique
-        if (cancel.by_axis && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Manual override: cancel preset");
-        }
-        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[2].max_limit - cfg[2].min_limit) + cfg[2].min_limit);
         Serial.println("🔧 Moving Zoom to: " + String(pos_val));
@@ -174,12 +124,6 @@ void OSCManager::handleAxisRoutes(OSCMessage &msg) {
     });
     
     msg.dispatch("/axis_slide", [](OSCMessage &msg) {
-        // Annuler preset selon la politique
-        if (cancel.by_axis && isSynchronizedMoveActive()) {
-            stopSynchronizedMove();
-            Serial.println("⏹️ Manual override: cancel preset");
-        }
-        
         float value = clampF(msg.getFloat(0), 0.0f, 1.0f);
         long pos_val = (long)(value * (cfg[3].max_limit - cfg[3].min_limit) + cfg[3].min_limit);
         Serial.println("🔧 Moving Slide to: " + String(pos_val));
@@ -215,14 +159,6 @@ void OSCManager::handlePresetRoutes(OSCMessage &msg) {
                       i, P,T,Z,S);
     });
 
-    // Policy de recall slide
-    msg.dispatch("/preset/recall_policy", [](OSCMessage &m){
-        if (m.size() > 0) {
-            int sp = m.getInt(0);
-            recallPolicy.slide = (sp == 1) ? SlideRecallPolicy::GOTO_THEN_RESUME : SlideRecallPolicy::KEEP_AB;
-            Serial.printf("Recall policy slide=%d\n", (int)recallPolicy.slide);
-        }
-    });
 
     msg.dispatch("/preset/recall", [](OSCMessage &m){
         int i = m.getInt(0);

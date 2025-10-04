@@ -26,7 +26,6 @@
 #include "Diagnostics.h"
 
 //==================== Configuration ====================
-RecallPolicy recallPolicy;
 
 //==================== Homing ====================
 

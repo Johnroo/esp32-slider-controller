@@ -29,10 +29,6 @@ struct JoyState {
   float slide = 0;
 };
 
-struct CancelPolicy { 
-  bool by_joystick = false;  // joystick n'annule pas les presets (offsets actifs)
-  bool by_axis = true;       // Direct Axis annule les presets (contrôle direct)
-};
 
 // Baseline d'offset au recall (Δoffset = latched - baseline)
 struct OffsetSession {
@@ -45,7 +41,6 @@ extern JoyCfg joy;
 extern JoyState joy_raw;      // alimenté par l'OSC
 extern JoyState joy_cmd;      // après deadzone/expo
 extern JoyState joy_filt;     // après filtrage
-extern CancelPolicy cancel;
 extern OffsetSession offset_session;
 
 // Offsets joystick (en steps)
@@ -184,17 +179,6 @@ JoyCfg& getJoystickConfig();
  */
 void setJoystickConfig(const JoyCfg& config);
 
-/**
- * @brief Obtient la politique d'annulation
- * @return Référence vers la politique
- */
-CancelPolicy& getCancelPolicy();
-
-/**
- * @brief Définit la politique d'annulation
- * @param policy Nouvelle politique
- */
-void setCancelPolicy(const CancelPolicy& policy);
 
 // Les fonctions de gestion des ranges et vitesses sont maintenant dans le module Config
 
