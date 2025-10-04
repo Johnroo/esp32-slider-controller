@@ -131,7 +131,6 @@ void updateJoystick() {
                 (fabsf(joy_filt.zoom) > BAKE_THRESH) ||
                 (fabsf(joy_filt.slide)> BAKE_THRESH);
 
-  uint32_t now = millis();
   if (moving && (isActive() || isInterpolationActive()) && (now - lastBake > BAKE_COOLDOWN_MS)) {
     // 1) Intégrer les offsets dans la cible du mouvement courant (recall) 
     //    ou mettre à jour les offsets persistants côté interpolation (si tu as ajouté Prompt #15)
