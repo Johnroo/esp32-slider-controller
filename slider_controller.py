@@ -241,8 +241,8 @@ def _joystick_worker():
                 # deadzone + expo + lissage ; inverser Y pour "stick en haut = +"
                 x = _apply_deadzone(x, JOYSTICK_DEADZONE)
                 y = _apply_deadzone(y, JOYSTICK_DEADZONE)
-                z = _apply_deadzone(z, JOYSTICK_DEADZONE)      # axe 2 : zoom offset
-                thr = _apply_deadzone(thr, JOYSTICK_DEADZONE)  # axe 3 : jog interpolation
+                z = _apply_deadzone(z, JOYSTICK_DEADZONE)      # axe 2 : jog interpolation
+                thr = _apply_deadzone(thr, JOYSTICK_DEADZONE)  # axe 3 : zoom offset
                 
                 x = _expo(x, JOYSTICK_EXPO)
                 y = _expo(y, JOYSTICK_EXPO)
@@ -264,8 +264,8 @@ def _joystick_worker():
                 joystick_state.update({
                     'x': float(max(-1.0, min(1.0, ema_x))),
                     'y': float(max(-1.0, min(1.0, ema_y))),
-                    'z': float(max(-1.0, min(1.0, ema_z))),        # zoom offset
-                    'throttle': float(max(-1.0, min(1.0, ema_thr))), # jog interpolation
+                    'z': float(max(-1.0, min(1.0, ema_z))),        # jog interpolation
+                    'throttle': float(max(-1.0, min(1.0, ema_thr))), # zoom offset
                     'buttons': buttons,
                     'timestamp': now
                 })
@@ -278,11 +278,11 @@ def _joystick_worker():
                     # /joy/pt : pan, tilt dans [-1..1]
                     send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
                     
-                    # /joy/zoom : axe 2 (z) pour zoom offset
-                    send_osc_message('/joy/zoom', float(joystick_state['z']))
+                    # /joy/zoom : axe 3 (throttle) pour zoom offset
+                    send_osc_message('/joy/zoom', float(joystick_state['throttle']))
                     
-                    # /interp/jog : axe 3 (throttle) pour jog interpolation
-                    send_osc_message('/interp/jog', float(joystick_state['throttle']))
+                    # /interp/jog : axe 2 (z) pour jog interpolation
+                    send_osc_message('/interp/jog', float(joystick_state['z']))
                     
                     last_send = now
                     last_x, last_y, last_z, last_thr = ema_x, ema_y, ema_z, ema_thr
