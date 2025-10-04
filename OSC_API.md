@@ -16,7 +16,7 @@ Ce document liste toutes les adresses OSC supportées par l'ESP32 Slider Control
 - [Offsets](#offsets)
 - [Configuration](#configuration)
 
----
+---baba
 
 ## Contrôle des axes
 
