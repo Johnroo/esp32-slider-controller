@@ -14,7 +14,6 @@
 #include "MotorControl.h"
 #include "Homing.h"
 #include "Presets.h"
-#include "Tracking.h"
 #include "MotionPlanner.h"
 #include "Joystick.h"
 #include "Utils.h"
@@ -71,7 +70,6 @@ void setup() {
   // Initialiser les autres modules
   initHoming();
   initPresets();
-  initTracking();
   initMotionPlanner();
   initJoystick();
   initNetwork();

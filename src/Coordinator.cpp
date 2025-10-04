@@ -3,7 +3,6 @@
 #include "MotorControl.h"
 #include "Joystick.h"
 #include "Presets.h"
-#include "Tracking.h"
 #include "MotionPlanner.h"
 #include "Utils.h"
 
@@ -33,9 +32,6 @@ void Coordinator::coordinatorTick() {
     }
 
     // 4) Contrôle joystick direct (mode par défaut)
-    // Mise à jour du suivi coordonné slide-pan/tilt
-    updateTracking();
-    
     // Jog direct des axes individuels
     float dt = dt_ms / 1000.0f;
     
