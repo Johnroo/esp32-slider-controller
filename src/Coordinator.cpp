@@ -14,7 +14,7 @@ void Coordinator::coordinatorTick() {
     last_ms = now;
 
     // 1) Mouvement synchronisé (priorité la plus haute)
-    if (isSynchronizedMoveActive()) {
+    if (isActive()) {
         updateMotionPlanner();
         return; // Ignorer tous les autres modes pendant un mouvement sync
     }

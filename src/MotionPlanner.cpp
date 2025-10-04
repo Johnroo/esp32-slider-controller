@@ -8,6 +8,7 @@
 #include "MotionPlanner.h"
 #include "MotorControl.h"
 #include "Presets.h"
+#include "Joystick.h"
 
 //==================== Variables globales ====================
 SyncMove sync_move;
@@ -73,6 +74,12 @@ void updateMotionPlanner() {
   long T = (long)lround( sync_move.start[1] + (tilt_goal - sync_move.start[1]) * s );
   long Z = (long)lround( sync_move.start[2] + (zoom_goal - sync_move.start[2]) * s );
   long S = (long)lround( sync_move.start[3] + (slide_goal- sync_move.start[3]) * s );
+  
+  // Ajouter les offsets joystick
+  P += getEffectivePanOffset(true);
+  T += getEffectiveTiltOffset(true);
+  Z += getEffectiveZoomOffset(true);
+  S += getEffectiveSlideOffset(true);
   
   // Clip limites
   P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
@@ -145,9 +152,6 @@ void stopSynchronizedMove() {
 /**
  * @brief Vérifie si un mouvement synchronisé est en cours
  */
-bool isSynchronizedMoveActive() {
-  return sync_move.active;
-}
 
 /**
  * @brief Calcule la durée optimale pour un mouvement

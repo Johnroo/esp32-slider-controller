@@ -34,6 +34,8 @@ struct JoyState {
 struct OffsetSession {
   long pan0 = 0;
   long tilt0 = 0;
+  long zoom0 = 0;
+  long slide0 = 0;
 };
 
 //==================== Variables globales ====================
@@ -46,10 +48,14 @@ extern OffsetSession offset_session;
 // Offsets joystick (en steps)
 extern volatile long pan_offset_steps;
 extern volatile long tilt_offset_steps;
+extern volatile long zoom_offset_steps;
+extern volatile long slide_offset_steps;
 
 // Offsets joystick latched (s'accumulent, persistent)
 extern volatile long pan_offset_latched;
 extern volatile long tilt_offset_latched;
+extern volatile long zoom_offset_latched;
+extern volatile long slide_offset_latched;
 
 // Les variables globales sont maintenant dans le module Config
 
@@ -133,22 +139,28 @@ void getCurrentOffsets(long &pan, long &tilt);
  * @brief Obtient les offsets latched
  * @param pan Référence pour l'offset pan latched
  * @param tilt Référence pour l'offset tilt latched
+ * @param zoom Référence pour l'offset zoom latched
+ * @param slide Référence pour l'offset slide latched
  */
-void getLatchedOffsets(long &pan, long &tilt);
+void getLatchedOffsets(long &pan, long &tilt, long &zoom, long &slide);
 
 /**
  * @brief Définit les offsets latched
  * @param pan Offset pan latched
  * @param tilt Offset tilt latched
+ * @param zoom Offset zoom latched
+ * @param slide Offset slide latched
  */
-void setLatchedOffsets(long pan, long tilt);
+void setLatchedOffsets(long pan, long tilt, long zoom, long slide);
 
 /**
  * @brief Ajoute des offsets aux offsets latched
  * @param pan Offset pan à ajouter
  * @param tilt Offset tilt à ajouter
+ * @param zoom Offset zoom à ajouter
+ * @param slide Offset slide à ajouter
  */
-void addLatchedOffsets(long pan, long tilt);
+void addLatchedOffsets(long pan, long tilt, long zoom, long slide);
 
 /**
  * @brief Remet à zéro les offsets latched
@@ -213,6 +225,20 @@ long getEffectivePanOffset(bool recallPhase);
  * @return Offset tilt effectif
  */
 long getEffectiveTiltOffset(bool recallPhase);
+
+/**
+ * @brief Obtient l'offset zoom effectif selon le contexte
+ * @param recallPhase true si en phase de recall
+ * @return Offset zoom effectif
+ */
+long getEffectiveZoomOffset(bool recallPhase);
+
+/**
+ * @brief Obtient l'offset slide effectif selon le contexte
+ * @param recallPhase true si en phase de recall
+ * @return Offset slide effectif
+ */
+long getEffectiveSlideOffset(bool recallPhase);
 
 /**
  * @brief Sauvegarde la baseline d'offsets pour une session

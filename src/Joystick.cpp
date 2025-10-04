@@ -20,10 +20,14 @@ OffsetSession offset_session;
 // Offsets joystick (en steps)
 volatile long pan_offset_steps = 0;
 volatile long tilt_offset_steps = 0;
+volatile long zoom_offset_steps = 0;
+volatile long slide_offset_steps = 0;
 
 // Offsets joystick latched (s'accumulent, persistent)
 volatile long pan_offset_latched = 0;
 volatile long tilt_offset_latched = 0;
+volatile long zoom_offset_latched = 0;
+volatile long slide_offset_latched = 0;
 
 // Les variables globales sont maintenant dans le module Config
 
@@ -54,12 +58,18 @@ void initJoystick() {
   // Initialiser les offsets
   pan_offset_steps = 0;
   tilt_offset_steps = 0;
+  zoom_offset_steps = 0;
+  slide_offset_steps = 0;
   pan_offset_latched = 0;
   tilt_offset_latched = 0;
+  zoom_offset_latched = 0;
+  slide_offset_latched = 0;
   
   // Initialiser la session d'offsets
   offset_session.pan0 = 0;
   offset_session.tilt0 = 0;
+  offset_session.zoom0 = 0;
+  offset_session.slide0 = 0;
   
   
   Serial.println("✅ Module joystick initialisé");
@@ -86,21 +96,29 @@ void updateJoystick() {
   joy_filt.slide = slewLimit(joy_filt.slide, iir1Pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
 
   // Intégration des offsets joystick (comportement "latched")
-  if (isSynchronizedMoveActive() || isSlideActive()) {
+  if (isActive() || isSlideActive()) {
     // Vitesse d'empilement en steps/s à |joy|=1 (30% de la Vmax de l'axe)
     const float PAN_OFFSET_RATE  = cfg[0].max_speed * 1.0f;  // steps/s
     const float TILT_OFFSET_RATE = cfg[1].max_speed * 0.7f;  // steps/s
+    const float ZOOM_OFFSET_RATE  = cfg[2].max_speed * 0.7f;  // steps/s
+    const float SLIDE_OFFSET_RATE = cfg[3].max_speed * 1.0f;  // steps/s
     
     long d_pan  = lroundf(joy_filt.pan  * PAN_OFFSET_RATE  * dt);
     long d_tilt = lroundf(joy_filt.tilt * TILT_OFFSET_RATE * dt);
+    long d_zoom  = lroundf(joy_filt.slide * ZOOM_OFFSET_RATE  * dt);
+    long d_slide = lroundf(joy_filt.slide * SLIDE_OFFSET_RATE * dt);
     
     pan_offset_latched  = clampL(pan_offset_latched  + d_pan,  -PAN_OFFSET_RANGE,  +PAN_OFFSET_RANGE);
     tilt_offset_latched = clampL(tilt_offset_latched + d_tilt, -TILT_OFFSET_RANGE, +TILT_OFFSET_RANGE);
+    zoom_offset_latched  = clampL(zoom_offset_latched  + d_zoom,  -ZOOM_OFFSET_RANGE,  +ZOOM_OFFSET_RANGE);
+    slide_offset_latched = clampL(slide_offset_latched + d_slide, -SLIDE_OFFSET_RANGE, +SLIDE_OFFSET_RANGE);
   }
   
   // Publie les offsets utilisés par le planificateur
   pan_offset_steps  = pan_offset_latched;
   tilt_offset_steps = tilt_offset_latched;
+  zoom_offset_steps  = zoom_offset_latched;
+  slide_offset_steps = slide_offset_latched;
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 }
 
@@ -173,25 +191,31 @@ void getCurrentOffsets(long &pan, long &tilt) {
 /**
  * @brief Obtient les offsets latched
  */
-void getLatchedOffsets(long &pan, long &tilt) {
+void getLatchedOffsets(long &pan, long &tilt, long &zoom, long &slide) {
   pan = pan_offset_latched;
   tilt = tilt_offset_latched;
+  zoom = zoom_offset_latched;
+  slide = slide_offset_latched;
 }
 
 /**
  * @brief Définit les offsets latched
  */
-void setLatchedOffsets(long pan, long tilt) {
+void setLatchedOffsets(long pan, long tilt, long zoom, long slide) {
   pan_offset_latched = clampL(pan, -PAN_OFFSET_RANGE, +PAN_OFFSET_RANGE);
   tilt_offset_latched = clampL(tilt, -TILT_OFFSET_RANGE, +TILT_OFFSET_RANGE);
+  zoom_offset_latched = clampL(zoom, -ZOOM_OFFSET_RANGE, +ZOOM_OFFSET_RANGE);
+  slide_offset_latched = clampL(slide, -SLIDE_OFFSET_RANGE, +SLIDE_OFFSET_RANGE);
 }
 
 /**
  * @brief Ajoute des offsets aux offsets latched
  */
-void addLatchedOffsets(long pan, long tilt) {
+void addLatchedOffsets(long pan, long tilt, long zoom, long slide) {
   pan_offset_latched = clampL(pan_offset_latched + pan, -PAN_OFFSET_RANGE, +PAN_OFFSET_RANGE);
   tilt_offset_latched = clampL(tilt_offset_latched + tilt, -TILT_OFFSET_RANGE, +TILT_OFFSET_RANGE);
+  zoom_offset_latched = clampL(zoom_offset_latched + zoom, -ZOOM_OFFSET_RANGE, +ZOOM_OFFSET_RANGE);
+  slide_offset_latched = clampL(slide_offset_latched + slide, -SLIDE_OFFSET_RANGE, +SLIDE_OFFSET_RANGE);
 }
 
 /**
@@ -200,6 +224,8 @@ void addLatchedOffsets(long pan, long tilt) {
 void resetLatchedOffsets() {
   pan_offset_latched = 0;
   tilt_offset_latched = 0;
+  zoom_offset_latched = 0;
+  slide_offset_latched = 0;
 }
 
 /**
@@ -273,11 +299,27 @@ long getEffectiveTiltOffset(bool recallPhase) {
 }
 
 /**
+ * @brief Obtient l'offset zoom effectif selon le contexte
+ */
+long getEffectiveZoomOffset(bool recallPhase) {
+  return recallPhase ? (zoom_offset_latched - offset_session.zoom0) : zoom_offset_steps;
+}
+
+/**
+ * @brief Obtient l'offset slide effectif selon le contexte
+ */
+long getEffectiveSlideOffset(bool recallPhase) {
+  return recallPhase ? (slide_offset_latched - offset_session.slide0) : slide_offset_steps;
+}
+
+/**
  * @brief Sauvegarde la baseline d'offsets pour une session
  */
 void saveOffsetBaseline() {
   offset_session.pan0 = pan_offset_latched;
   offset_session.tilt0 = tilt_offset_latched;
+  offset_session.zoom0 = zoom_offset_latched;
+  offset_session.slide0 = slide_offset_latched;
 }
 
 /**
@@ -286,4 +328,6 @@ void saveOffsetBaseline() {
 void restoreOffsetBaseline() {
   pan_offset_latched = offset_session.pan0;
   tilt_offset_latched = offset_session.tilt0;
+  zoom_offset_latched = offset_session.zoom0;
+  slide_offset_latched = offset_session.slide0;
 }

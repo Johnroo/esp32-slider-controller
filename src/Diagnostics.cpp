@@ -4,6 +4,12 @@
 #include "Joystick.h"
 #include "OSCManager.h"
 
+// Déclarations externes pour les offsets
+extern volatile long pan_offset_steps;
+extern volatile long tilt_offset_steps;
+extern volatile long zoom_offset_steps;
+extern volatile long slide_offset_steps;
+
 void Diagnostics::initDiagnostics() {
     // Pas d'initialisation nécessaire pour le moment
 }
@@ -17,7 +23,9 @@ void Diagnostics::updateDiagnostics() {
         tlog = millis();
         String s = "t=" + String(millis()/1000.0, 2) + " jog=" + String(slide_jog_cmd, 2) +
                    " | P:" + String(panPos) + " T:" + String(tiltPos) +
-                   " Z:" + String(zoomPos) + " S:" + String(slidePos);
+                   " Z:" + String(zoomPos) + " S:" + String(slidePos) +
+                   " | Offsets: P:" + String(pan_offset_steps) + " T:" + String(tilt_offset_steps) +
+                   " Z:" + String(zoom_offset_steps) + " S:" + String(slide_offset_steps);
         Serial.println(s);
     }
     

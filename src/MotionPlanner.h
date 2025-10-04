@@ -64,7 +64,6 @@ void stopSynchronizedMove();
  * @brief Vérifie si un mouvement synchronisé est en cours
  * @return true si actif, false sinon
  */
-bool isSynchronizedMoveActive();
 
 /**
  * @brief Calcule la durée optimale pour un mouvement

@@ -55,7 +55,7 @@ void initWebServer() {
     
     // État des modes actifs
     doc["modes"]["interpAuto"] = interpAuto.active;
-    doc["modes"]["syncMove"] = isSynchronizedMoveActive();
+    doc["modes"]["syncMove"] = isActive();
     doc["modes"]["slideAB"] = false; // Mode slideAB supprimé dans la refactorisation
     
     // Banque active

@@ -102,6 +102,8 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 // Plages de slew limiting pour le filtrage joystick (plus grande = réponse plus rapide)
 #define DEFAULT_PAN_SLEW_RANGE  800
 #define DEFAULT_TILT_SLEW_RANGE 800
+#define DEFAULT_ZOOM_SLEW_RANGE 800
+#define DEFAULT_SLIDE_SLEW_RANGE 800
 
 // Vitesses de jog par défaut (steps/s)
 #define DEFAULT_PAN_JOG_SPEED   18000.0f
@@ -136,6 +138,8 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 // Ranges d'offsets (modifiables via OSC)
 extern long PAN_OFFSET_RANGE;
 extern long TILT_OFFSET_RANGE;
+extern long ZOOM_OFFSET_RANGE;
+extern long SLIDE_OFFSET_RANGE;
 
 // Vitesses de jog (calculées dans setup)
 extern float PAN_JOG_SPEED;
@@ -172,15 +176,19 @@ void setJogSpeeds(float pan, float tilt, float slide);
  * @brief Obtient les ranges d'offsets actuels
  * @param pan Référence pour le range pan
  * @param tilt Référence pour le range tilt
+ * @param zoom Référence pour le range zoom
+ * @param slide Référence pour le range slide
  */
-void getOffsetRanges(long &pan, long &tilt);
+void getOffsetRanges(long &pan, long &tilt, long &zoom, long &slide);
 
 /**
  * @brief Définit les ranges d'offsets
  * @param pan Range pan
  * @param tilt Range tilt
+ * @param zoom Range zoom
+ * @param slide Range slide
  */
-void setOffsetRanges(long pan, long tilt);
+void setOffsetRanges(long pan, long tilt, long zoom, long slide);
 
 /**
  * @brief Obtient la durée par défaut des mouvements

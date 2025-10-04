@@ -12,6 +12,8 @@
 // Ranges d'offsets (modifiables via OSC)
 long PAN_OFFSET_RANGE = DEFAULT_PAN_SLEW_RANGE;
 long TILT_OFFSET_RANGE = DEFAULT_TILT_SLEW_RANGE;
+long ZOOM_OFFSET_RANGE = DEFAULT_ZOOM_SLEW_RANGE;
+long SLIDE_OFFSET_RANGE = DEFAULT_SLIDE_SLEW_RANGE;
 
 // Vitesses de jog (calculées dans setup)
 float PAN_JOG_SPEED = DEFAULT_PAN_JOG_SPEED;
@@ -39,6 +41,8 @@ void initConfig() {
   // Initialiser les ranges d'offsets
   PAN_OFFSET_RANGE = DEFAULT_PAN_SLEW_RANGE;
   TILT_OFFSET_RANGE = DEFAULT_TILT_SLEW_RANGE;
+  ZOOM_OFFSET_RANGE = DEFAULT_ZOOM_SLEW_RANGE;
+  SLIDE_OFFSET_RANGE = DEFAULT_SLIDE_SLEW_RANGE;
   
   // Initialiser les vitesses de jog
   PAN_JOG_SPEED = DEFAULT_PAN_JOG_SPEED;
@@ -75,20 +79,24 @@ void setJogSpeeds(float pan, float tilt, float slide) {
 /**
  * @brief Obtient les ranges d'offsets actuels
  */
-void getOffsetRanges(long &pan, long &tilt) {
+void getOffsetRanges(long &pan, long &tilt, long &zoom, long &slide) {
   pan = PAN_OFFSET_RANGE;
   tilt = TILT_OFFSET_RANGE;
+  zoom = ZOOM_OFFSET_RANGE;
+  slide = SLIDE_OFFSET_RANGE;
 }
 
 /**
  * @brief Définit les ranges d'offsets
  */
-void setOffsetRanges(long pan, long tilt) {
+void setOffsetRanges(long pan, long tilt, long zoom, long slide) {
   PAN_OFFSET_RANGE = pan;
   TILT_OFFSET_RANGE = tilt;
+  ZOOM_OFFSET_RANGE = zoom;
+  SLIDE_OFFSET_RANGE = slide;
   
-  Serial.printf("📏 Ranges d'offsets mis à jour: Pan=%ld Tilt=%ld\n", 
-                PAN_OFFSET_RANGE, TILT_OFFSET_RANGE);
+  Serial.printf("📏 Ranges d'offsets mis à jour: Pan=%ld Tilt=%ld Zoom=%ld Slide=%ld\n", 
+                PAN_OFFSET_RANGE, TILT_OFFSET_RANGE, ZOOM_OFFSET_RANGE, SLIDE_OFFSET_RANGE);
 }
 
 /**

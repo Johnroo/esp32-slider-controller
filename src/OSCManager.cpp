@@ -227,6 +227,9 @@ void OSCManager::handleInterpolationRoutes(OSCMessage &msg) {
             interpAuto.t0_ms = millis();
             interpAuto.active = true;
             
+            // Sauvegarder le baseline des offsets
+            saveOffsetBaseline();
+            
             // Désactiver modes concurrents
             stopSynchronizedMove();
             
@@ -450,27 +453,31 @@ void OSCManager::handleOffsetRoutes(OSCMessage &msg) {
     });
     
     msg.dispatch("/offset/add", [](OSCMessage &m){
-        long pan = 0, tilt = 0;
+        long pan = 0, tilt = 0, zoom = 0, slide = 0;
         if (m.size() > 0) pan = m.getInt(0);
         if (m.size() > 1) tilt = m.getInt(1);
-        addLatchedOffsets(pan, tilt);
-        Serial.println("➕ Add offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
+        if (m.size() > 2) zoom = m.getInt(2);
+        if (m.size() > 3) slide = m.getInt(3);
+        addLatchedOffsets(pan, tilt, zoom, slide);
+        Serial.println("➕ Add offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched) + ", zoom=" + String(zoom_offset_latched) + ", slide=" + String(slide_offset_latched));
     });
     
     msg.dispatch("/offset/set", [](OSCMessage &m){
-        long pan = 0, tilt = 0;
+        long pan = 0, tilt = 0, zoom = 0, slide = 0;
         if (m.size() > 0) pan = m.getInt(0);
         if (m.size() > 1) tilt = m.getInt(1);
-        setLatchedOffsets(pan, tilt);
-        Serial.println("🎯 Set offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched));
+        if (m.size() > 2) zoom = m.getInt(2);
+        if (m.size() > 3) slide = m.getInt(3);
+        setLatchedOffsets(pan, tilt, zoom, slide);
+        Serial.println("🎯 Set offsets: pan=" + String(pan_offset_latched) + ", tilt=" + String(tilt_offset_latched) + ", zoom=" + String(zoom_offset_latched) + ", slide=" + String(slide_offset_latched));
     });
     
     msg.dispatch("/offset/bake", [](OSCMessage &m){
-        if (isSynchronizedMoveActive()){
+        if (isActive()){
             // Intègre l'offset actuel dans la goal_base du preset
-            long pan, tilt;
-            getLatchedOffsets(pan, tilt);
-            bakeOffsetsIntoCurrentMove(pan, tilt);
+            long pan, tilt, zoom, slide;
+            getLatchedOffsets(pan, tilt, zoom, slide);
+            bakeOffsetsIntoCurrentMove(pan, tilt, zoom, slide);
         }
         resetLatchedOffsets();
         Serial.println("🔄 Reset offsets after bake");
@@ -480,7 +487,11 @@ void OSCManager::handleOffsetRoutes(OSCMessage &msg) {
 void OSCManager::handleConfigRoutes(OSCMessage &msg) {
     // Config: ranges offsets et mapping slide->pan/tilt
     msg.dispatch("/config/offset_range", [](OSCMessage &m){
-        setOffsetRanges(m.getInt(0), m.getInt(1));
+        long pan = m.getInt(0);
+        long tilt = m.getInt(1);
+        long zoom = (m.size() > 2) ? m.getInt(2) : DEFAULT_ZOOM_SLEW_RANGE;
+        long slide = (m.size() > 3) ? m.getInt(3) : DEFAULT_SLIDE_SLEW_RANGE;
+        setOffsetRanges(pan, tilt, zoom, slide);
     });
     // Routes /config/pan_map et /config/tilt_map supprimées (mode follow obsolète)
 }

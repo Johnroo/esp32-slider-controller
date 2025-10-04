@@ -8,6 +8,7 @@
 #include "Presets.h"
 #include "MotorControl.h"
 #include "Utils.h"
+#include "Joystick.h"
 
 //==================== Variables globales ====================
 Preset presets[MAX_PRESETS];
@@ -253,6 +254,18 @@ void updateInterpolation() {
     long P, T, Z, S;
     computeInterpolatedPosition(u, P, T, Z, S);
     
+    // Ajouter les offsets joystick
+    P += getEffectivePanOffset(true);
+    T += getEffectiveTiltOffset(true);
+    Z += getEffectiveZoomOffset(true);
+    S += getEffectiveSlideOffset(true);
+    
+    // Clamp limites
+    P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
+    T = clampL(T, cfg[1].min_limit, cfg[1].max_limit);
+    Z = clampL(Z, cfg[2].min_limit, cfg[2].max_limit);
+    S = clampL(S, cfg[3].min_limit, cfg[3].max_limit);
+    
     // Envoyer aux moteurs
     steppers[0]->moveTo(P);
     steppers[1]->moveTo(T);
@@ -347,6 +360,7 @@ void setInterpJogCommand(float cmd) {
 void updateInterpolationJog() {
     static float u = 0.0f;
     static uint32_t last = millis();
+    static bool baselineSaved = false;
     uint32_t now = millis();
     float dt = (now - last) / 1000.0f;
     last = now;
@@ -357,6 +371,26 @@ void updateInterpolationJog() {
 
     long P, T, Z, S;
     computeInterpolatedPosition(u, P, T, Z, S);
+    
+    // Ajouter les offsets joystick
+    P += getEffectivePanOffset(true);
+    T += getEffectiveTiltOffset(true);
+    Z += getEffectiveZoomOffset(true);
+    S += getEffectiveSlideOffset(true);
+    
+    // Clamp limites
+    P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
+    T = clampL(T, cfg[1].min_limit, cfg[1].max_limit);
+    Z = clampL(Z, cfg[2].min_limit, cfg[2].max_limit);
+    S = clampL(S, cfg[3].min_limit, cfg[3].max_limit);
+    
+    // Gestion du baseline
+    if (!baselineSaved && fabs(interp_jog_cmd) > 0.001f) {
+        saveOffsetBaseline();
+        baselineSaved = true;
+    }
+    if (fabs(interp_jog_cmd) < 0.001f) baselineSaved = false;
+    
     steppers[0]->moveTo(P);
     steppers[1]->moveTo(T);
     steppers[2]->moveTo(Z);
