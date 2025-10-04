@@ -360,6 +360,13 @@
             align-items: center;
         }
         
+        .joy-visual h4 {
+            margin-bottom: 8px;
+            color: #495057;
+            font-size: 14px;
+            text-align: center;
+        }
+        
         .joy-flex { 
             display: flex; 
             gap: 24px; 
@@ -565,7 +572,20 @@
                         <canvas id="joyCanvas" width="180" height="180"></canvas>
                         <div class="value-display">X: <span id="joyX">0.00</span> | Y: <span id="joyY">0.00</span></div>
                         <div id="joyHint" class="hint">Recherche d'un joystick USB…</div>
-            <button class="btn" id="joyReconnectBtn" title="Rescanner le joystick" style="margin-top:8px">🔁 Reconnect Joystick</button>
+                        <button class="btn" id="joyReconnectBtn" title="Rescanner le joystick" style="margin-top:8px">🔁 Reconnect Joystick</button>
+                    </div>
+
+                    <!-- Axes supplémentaires -->
+                    <div class="joy-visual">
+                        <h4>🔄 Twist (Zoom Offset)</h4>
+                        <canvas id="twistCanvas" width="120" height="120"></canvas>
+                        <div class="value-display">Z: <span id="joyZ">0.00</span></div>
+                    </div>
+
+                    <div class="joy-visual">
+                        <h4>🚀 Throttle (Interp Jog)</h4>
+                        <canvas id="throttleCanvas" width="120" height="120"></canvas>
+                        <div class="value-display">T: <span id="joyThrottle">0.00</span></div>
                     </div>
 
                     <!-- Fallback sliders (cachés si joystick connecté) -->
@@ -1619,6 +1639,85 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             joyCtx.fill();
         }
 
+        function drawTwist(value) {
+            const canvas = document.getElementById('twistCanvas');
+            const ctx = canvas.getContext('2d');
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const radius = 40;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Cercle extérieur
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#6c757d';
+            ctx.stroke();
+
+            // Ligne centrale
+            ctx.beginPath();
+            ctx.moveTo(cx - radius, cy);
+            ctx.lineTo(cx + radius, cy);
+            ctx.stroke();
+
+            // Arc de rotation basé sur la valeur
+            const angle = value * Math.PI; // -1 à +1 -> -π à +π
+            const startAngle = -Math.PI / 2;
+            const endAngle = startAngle + angle;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius - 10, startAngle, endAngle);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#28a745';
+            ctx.stroke();
+
+            // Point sur le cercle
+            const px = cx + Math.cos(endAngle) * (radius - 5);
+            const py = cy + Math.sin(endAngle) * (radius - 5);
+            ctx.beginPath();
+            ctx.arc(px, py, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#28a745';
+            ctx.fill();
+        }
+
+        function drawThrottle(value) {
+            const canvas = document.getElementById('throttleCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const barWidth = 20;
+            const barHeight = height - 20;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Fond de la barre
+            const barX = (width - barWidth) / 2;
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(barX, 10, barWidth, barHeight);
+
+            // Bordure de la barre
+            ctx.strokeStyle = '#6c757d';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX, 10, barWidth, barHeight);
+
+            // Valeur de la barre (-1 à +1 -> bas en haut)
+            const normalizedValue = (value + 1) / 2; // -1..1 -> 0..1
+            const fillHeight = normalizedValue * barHeight;
+            const fillY = 10 + barHeight - fillHeight;
+
+            ctx.fillStyle = '#dc3545';
+            ctx.fillRect(barX, fillY, barWidth, fillHeight);
+
+            // Ligne centrale
+            ctx.beginPath();
+            ctx.moveTo(barX, 10 + barHeight / 2);
+            ctx.lineTo(barX + barWidth, 10 + barHeight / 2);
+            ctx.strokeStyle = '#6c757d';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
         async function pollJoystick() {
             try {
                 const r = await fetch('/api/joystick/state');
@@ -1627,10 +1726,17 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
 
                 const x = (js.x ?? 0);
                 const y = (js.y ?? 0);
+                const z = (js.z ?? 0);
+                const throttle = (js.throttle ?? 0);
+                
                 drawJoy(x, y);
+                drawTwist(z);
+                drawThrottle(throttle);
 
                 document.getElementById('joyX').textContent = x.toFixed(2);
                 document.getElementById('joyY').textContent = y.toFixed(2);
+                document.getElementById('joyZ').textContent = z.toFixed(2);
+                document.getElementById('joyThrottle').textContent = throttle.toFixed(2);
 
                 const conn = !!js.connected;
                 document.body.dataset.joy = conn ? 'connected' : 'disconnected';
