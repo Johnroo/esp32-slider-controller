@@ -57,11 +57,12 @@ void setup() {
   // Calculer les vitesses de jog basées sur la config (maintenant que cfg[] est initialisé)
   float pan_speed = cfg[0].max_speed * 0.8f;   // 80% de la vitesse max
   float tilt_speed = cfg[1].max_speed * 0.8f;  // 80% de la vitesse max
+  float zoom_speed = cfg[2].max_speed * 0.8f;  // 80% de la vitesse max
   float slide_speed = cfg[3].max_speed * 0.8f;  // 80% de la vitesse max
-  setJogSpeeds(pan_speed, tilt_speed, slide_speed);
+  setJogSpeeds(pan_speed, tilt_speed, zoom_speed, slide_speed);
   
-  Serial.printf("🎯 Jog speeds: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
-                pan_speed, tilt_speed, slide_speed);
+  Serial.printf("🎯 Jog speeds: Pan=%.0f Tilt=%.0f Zoom=%.0f Slide=%.0f steps/s\n", 
+                pan_speed, tilt_speed, zoom_speed, slide_speed);
   
   // Charger la banque 0 au démarrage
   loadBank(0);

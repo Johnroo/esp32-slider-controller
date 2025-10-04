@@ -18,6 +18,7 @@ long SLIDE_OFFSET_RANGE = DEFAULT_SLIDE_SLEW_RANGE;
 // Vitesses de jog (calculées dans setup)
 float PAN_JOG_SPEED = DEFAULT_PAN_JOG_SPEED;
 float TILT_JOG_SPEED = DEFAULT_TILT_JOG_SPEED;
+float ZOOM_JOG_SPEED = DEFAULT_ZOOM_JOG_SPEED;
 float SLIDE_JOG_SPEED = DEFAULT_SLIDE_JOG_SPEED;
 
 // Durée par défaut des mouvements
@@ -47,6 +48,7 @@ void initConfig() {
   // Initialiser les vitesses de jog
   PAN_JOG_SPEED = DEFAULT_PAN_JOG_SPEED;
   TILT_JOG_SPEED = DEFAULT_TILT_JOG_SPEED;
+  ZOOM_JOG_SPEED = DEFAULT_ZOOM_JOG_SPEED;
   SLIDE_JOG_SPEED = DEFAULT_SLIDE_JOG_SPEED;
   
   // Initialiser la durée par défaut
@@ -58,22 +60,24 @@ void initConfig() {
 /**
  * @brief Obtient les vitesses de jog actuelles
  */
-void getJogSpeeds(float &pan, float &tilt, float &slide) {
+void getJogSpeeds(float &pan, float &tilt, float &zoom, float &slide) {
   pan = PAN_JOG_SPEED;
   tilt = TILT_JOG_SPEED;
+  zoom = ZOOM_JOG_SPEED;
   slide = SLIDE_JOG_SPEED;
 }
 
 /**
  * @brief Définit les vitesses de jog
  */
-void setJogSpeeds(float pan, float tilt, float slide) {
+void setJogSpeeds(float pan, float tilt, float zoom, float slide) {
   PAN_JOG_SPEED = pan;
   TILT_JOG_SPEED = tilt;
+  ZOOM_JOG_SPEED = zoom;
   SLIDE_JOG_SPEED = slide;
   
-  Serial.printf("🎯 Vitesses de jog mises à jour: Pan=%.0f Tilt=%.0f Slide=%.0f steps/s\n", 
-                PAN_JOG_SPEED, TILT_JOG_SPEED, SLIDE_JOG_SPEED);
+  Serial.printf("🎯 Vitesses de jog mises à jour: Pan=%.0f Tilt=%.0f Zoom=%.0f Slide=%.0f steps/s\n", 
+                PAN_JOG_SPEED, TILT_JOG_SPEED, ZOOM_JOG_SPEED, SLIDE_JOG_SPEED);
 }
 
 /**

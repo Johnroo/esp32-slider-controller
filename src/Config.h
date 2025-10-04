@@ -108,6 +108,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 // Vitesses de jog par défaut (steps/s)
 #define DEFAULT_PAN_JOG_SPEED   18000.0f
 #define DEFAULT_TILT_JOG_SPEED  3000.0f
+#define DEFAULT_ZOOM_JOG_SPEED  3000.0f
 #define DEFAULT_SLIDE_JOG_SPEED 6000.0f
 
 // Configuration joystick par défaut
@@ -144,6 +145,7 @@ extern long SLIDE_OFFSET_RANGE;
 // Vitesses de jog (calculées dans setup)
 extern float PAN_JOG_SPEED;
 extern float TILT_JOG_SPEED;
+extern float ZOOM_JOG_SPEED;
 extern float SLIDE_JOG_SPEED;
 
 // Durée par défaut des mouvements
@@ -162,15 +164,16 @@ void initConfig();
  * @param tilt Référence pour la vitesse tilt
  * @param slide Référence pour la vitesse slide
  */
-void getJogSpeeds(float &pan, float &tilt, float &slide);
+void getJogSpeeds(float &pan, float &tilt, float &zoom, float &slide);
 
 /**
  * @brief Définit les vitesses de jog
  * @param pan Vitesse pan
  * @param tilt Vitesse tilt
+ * @param zoom Vitesse zoom
  * @param slide Vitesse slide
  */
-void setJogSpeeds(float pan, float tilt, float slide);
+void setJogSpeeds(float pan, float tilt, float zoom, float slide);
 
 /**
  * @brief Obtient les ranges d'offsets actuels
