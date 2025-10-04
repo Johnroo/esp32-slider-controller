@@ -479,6 +479,12 @@ void OSCManager::handleOffsetRoutes(OSCMessage &msg) {
         resetLatchedOffsets();
         Serial.println("🔄 Reset offsets after bake");
     });
+    
+    msg.dispatch("/offset/reset_all", [](OSCMessage &m){
+        resetLatchedOffsets();
+        saveOffsetBaseline();
+        Serial.println("🔄 Tous les offsets joystick réinitialisés manuellement");
+    });
 }
 
 void OSCManager::handleConfigRoutes(OSCMessage &msg) {
