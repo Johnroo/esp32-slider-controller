@@ -161,24 +161,21 @@ void OSCManager::handlePresetRoutes(OSCMessage &msg) {
 
     msg.dispatch("/preset/recall", [](OSCMessage &m){
         int i = m.getInt(0);
-        float Tsec = m.getFloat(1); if (Tsec <= 0) Tsec = 2.0f;
+        float Tsec = m.getFloat(1);
+        if (Tsec <= 0) Tsec = 2.0f;
         activePreset = i;
 
-        // Baseline des offsets au début du recall
-        offset_session.pan0  = pan_offset_latched;
-        offset_session.tilt0 = tilt_offset_latched;
+        // Réinitialiser tous les offsets avant le recall
+        resetLatchedOffsets();
+        saveOffsetBaseline();
+        Serial.println("🔄 Offsets joystick réinitialisés au début du preset recall");
 
-        uint32_t Tms_req = (uint32_t)lround(Tsec*1000.0);
+        uint32_t Tms_req = (uint32_t)lround(Tsec * 1000.0);
+        long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
 
-        // Logique simplifiée : tous les presets sont maintenant absolus
-        {
-            // Mouvement synchronisé normal (ABSOLUTE ou policy GOTO_THEN_RESUME)
-            long base_goal[NUM_MOTORS] = { presets[i].p, presets[i].t, presets[i].z, presets[i].s };
-            
-            if (planSynchronizedMove(base_goal, Tms_req)) {
-                Serial.printf("\xE2\x96\xBA Recall(ABS): P:%ld T:%ld Z:%ld S:%ld\n",
-                              base_goal[0], base_goal[1], base_goal[2], base_goal[3]);
-            }
+        if (planSynchronizedMove(base_goal, Tms_req)) {
+            Serial.printf("▶️ Recall(ABS): P:%ld T:%ld Z:%ld S:%ld\n",
+                          base_goal[0], base_goal[1], base_goal[2], base_goal[3]);
         }
     });
 
