@@ -121,6 +121,22 @@ void updateJoystick() {
   slide_offset_steps = slide_offset_latched;
   slide_jog_cmd     = clampF(joy_filt.slide * joy.slide_speed, -1.f, +1.f);
 
+  // --- Recalage dynamique du mouvement en cours ---
+  if (isActive() || isInterpolationActive()) {
+      static uint32_t lastBake = 0;
+      uint32_t now = millis();
+      // Pour ne pas saturer le planificateur, on "bake" toutes les 100 ms pendant que le joystick bouge
+      if (now - lastBake > 100) {
+          bakeOffsetsIntoCurrentMove(
+              pan_offset_latched,
+              tilt_offset_latched,
+              zoom_offset_latched,
+              slide_offset_latched
+          );
+          lastBake = now;
+      }
+  }
+
   // --- Gestion du relâchement joystick : bake non destructif ---
   static bool wasMoving = false;
   bool isMoving = (fabsf(joy_filt.pan) > 0.01f ||
