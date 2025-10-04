@@ -56,7 +56,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 // Courants par défaut (mA)
 #define DEFAULT_PAN_CURRENT    1700
 #define DEFAULT_TILT_CURRENT   1700
-#define DEFAULT_ZOOM_CURRENT   400
+#define DEFAULT_ZOOM_CURRENT   300
 #define DEFAULT_SLIDE_CURRENT  1600
 
 // Microstepping par défaut

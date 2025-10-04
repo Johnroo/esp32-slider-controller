@@ -52,7 +52,11 @@ void setup() {
 
   Serial.println("🚀 ESP32 Slider Controller Starting...");
   
-  // Calculer les vitesses de jog basées sur la config
+  // Initialiser d'abord Config et Motors (nécessaires pour les vitesses de jog)
+  initConfig();
+  initMotors();
+  
+  // Calculer les vitesses de jog basées sur la config (maintenant que cfg[] est initialisé)
   float pan_speed = cfg[0].max_speed * 0.8f;   // 80% de la vitesse max
   float tilt_speed = cfg[1].max_speed * 0.8f;  // 80% de la vitesse max
   float slide_speed = cfg[3].max_speed * 0.8f;  // 80% de la vitesse max
@@ -65,9 +69,7 @@ void setup() {
   loadBank(0);
   Serial.println("📂 Banque 0 chargée au démarrage");
   
-  // Initialiser les modules
-  initConfig();
-  initMotors();
+  // Initialiser les autres modules
   initHoming();
   initPresets();
   initTracking();
