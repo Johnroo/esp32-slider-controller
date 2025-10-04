@@ -19,17 +19,22 @@ void Coordinator::coordinatorTick() {
     float dt = dt_ms / 1000.0f;
 
     // --- 1) Mouvements planifiés ---
-    if (isActive()) {
-        updateMotionPlanner(); // Recall preset ou move synchronisé
-    } else if (interpAuto.active) {
-        updateInterpolation(); // Automorph (interpolation auto)
-    } else if (fabs(interp_jog_cmd) > 0.001f) {
-        updateInterpolationJog(); // Jog sur axe interpolation
+    bool planned = false;
+    if (isActive()) {                 // recall preset
+        updateMotionPlanner();
+        planned = true;
+    } else if (isInterpolationActive()) {  // automorph
+        updateInterpolation();
+        planned = true;
+    } else if (fabs(interp_jog_cmd) > 0.001f) { // jog d'interp
+        updateInterpolationJog();
+        planned = true;
     }
 
-    // --- 2) Joystick toujours actif ---
-    // On applique les offsets joystick même si un mouvement est en cours
-    applyJoystickOffsets(dt);
+    // --- 2) Joystick direct UNIQUEMENT si pas de mode planifié ---
+    if (!planned) {
+        applyJoystickOffsets(dt);
+    }
 }
 
 // Nouvelle fonction utilitaire à placer dans ce fichier (hors classe)
