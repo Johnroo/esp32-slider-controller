@@ -107,7 +107,7 @@ void updateJoystick() {
     
     long d_pan  = lroundf(joy_filt.pan  * PAN_OFFSET_RATE  * dt);
     long d_tilt = lroundf(joy_filt.tilt * TILT_OFFSET_RATE * dt);
-    long d_zoom  = lroundf(joy_filt.slide * ZOOM_OFFSET_RATE  * dt);
+    long d_zoom  = lroundf(joy_filt.zoom * ZOOM_OFFSET_RATE  * dt);
     long d_slide = lroundf(joy_filt.slide * SLIDE_OFFSET_RATE * dt);
     
     pan_offset_latched  = clampL(pan_offset_latched  + d_pan,  -PAN_OFFSET_RANGE,  +PAN_OFFSET_RANGE);
