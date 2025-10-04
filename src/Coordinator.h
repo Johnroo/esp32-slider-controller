@@ -19,4 +19,7 @@ public:
     static void coordinatorTick();
 };
 
+// Fonction utilitaire pour appliquer les offsets joystick
+void applyJoystickOffsets(float dt);
+
 #endif // COORDINATOR_H

@@ -26,6 +26,7 @@ struct JoyCfg {
 struct JoyState { 
   float pan = 0;
   float tilt = 0;
+  float zoom = 0;
   float slide = 0;
 };
 
