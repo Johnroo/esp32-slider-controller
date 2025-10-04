@@ -279,6 +279,12 @@ void OSCManager::handleBankRoutes(OSCMessage &msg) {
             if (idx < 10) {
                 activeBank = idx;
                 loadBank(idx);
+
+                // Réinitialiser les offsets joystick au changement de banque
+                resetLatchedOffsets();
+                saveOffsetBaseline();
+                Serial.println("🔄 Offsets joystick réinitialisés au changement de banque");
+
                 Serial.printf("🏦 Banque active changée vers %d\n", idx);
                 
                 // Renvoyer les points d'interpolation après le chargement
