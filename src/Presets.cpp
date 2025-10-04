@@ -262,8 +262,26 @@ void updateInterpolation() {
     // Calculer la position interpolée pour tous les axes
     long P, T, Z, S;
     computeInterpolatedPosition(u, P, T, Z, S);
-    
-    // Ajouter les offsets persistants + offsets joystick instantanés
+
+    // --- Mise à jour des offsets persistants si joystick bouge ---
+    const float JOY_THRESH = 0.03f;
+    bool joyActive = (fabsf(joy_filt.pan) > JOY_THRESH) ||
+                     (fabsf(joy_filt.tilt) > JOY_THRESH) ||
+                     (fabsf(joy_filt.zoom) > JOY_THRESH) ||
+                     (fabsf(joy_filt.slide) > JOY_THRESH);
+
+    if (joyActive) {
+        interp_offset_p += pan_offset_latched;
+        interp_offset_t += tilt_offset_latched;
+        interp_offset_z += zoom_offset_latched;
+        interp_offset_s += slide_offset_latched;
+
+        // Recalage baseline
+        saveOffsetBaseline();
+        resetLatchedOffsets();
+    }
+
+    // --- Application des offsets persistants + joystick instantané ---
     P += interp_offset_p + getEffectivePanOffset(true);
     T += interp_offset_t + getEffectiveTiltOffset(true);
     Z += interp_offset_z + getEffectiveZoomOffset(true);
@@ -386,8 +404,26 @@ void updateInterpolationJog() {
 
     long P, T, Z, S;
     computeInterpolatedPosition(u, P, T, Z, S);
-    
-    // Ajouter les offsets persistants + offsets joystick instantanés
+
+    // --- Mise à jour des offsets persistants si joystick bouge ---
+    const float JOY_THRESH = 0.03f;
+    bool joyActive = (fabsf(joy_filt.pan) > JOY_THRESH) ||
+                     (fabsf(joy_filt.tilt) > JOY_THRESH) ||
+                     (fabsf(joy_filt.zoom) > JOY_THRESH) ||
+                     (fabsf(joy_filt.slide) > JOY_THRESH);
+
+    if (joyActive) {
+        interp_offset_p += pan_offset_latched;
+        interp_offset_t += tilt_offset_latched;
+        interp_offset_z += zoom_offset_latched;
+        interp_offset_s += slide_offset_latched;
+
+        // Recalage baseline
+        saveOffsetBaseline();
+        resetLatchedOffsets();
+    }
+
+    // --- Application des offsets persistants + joystick instantané ---
     P += interp_offset_p + getEffectivePanOffset(true);
     T += interp_offset_t + getEffectiveTiltOffset(true);
     Z += interp_offset_z + getEffectiveZoomOffset(true);
