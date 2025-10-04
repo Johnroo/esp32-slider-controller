@@ -216,9 +216,11 @@ def _joystick_worker():
             # Traitement normal du joystick
             clock = pygame.time.Clock()
             last_send = time.time()
-            last_x, last_y = 0.0, 0.0
+            last_x, last_y, last_z, last_thr = 0.0, 0.0, 0.0, 0.0
             ema_x = 0.0
             ema_y = 0.0
+            ema_z = 0.0
+            ema_thr = 0.0
             alpha = 0.2  # lissage léger
             
             while js is not None:
@@ -239,10 +241,18 @@ def _joystick_worker():
                 # deadzone + expo + lissage ; inverser Y pour "stick en haut = +"
                 x = _apply_deadzone(x, JOYSTICK_DEADZONE)
                 y = _apply_deadzone(y, JOYSTICK_DEADZONE)
+                z = _apply_deadzone(z, JOYSTICK_DEADZONE)      # axe 2 : zoom offset
+                thr = _apply_deadzone(thr, JOYSTICK_DEADZONE)  # axe 3 : jog interpolation
+                
                 x = _expo(x, JOYSTICK_EXPO)
                 y = _expo(y, JOYSTICK_EXPO)
+                z = _expo(z, JOYSTICK_EXPO)
+                thr = _expo(thr, JOYSTICK_EXPO)
+                
                 ema_x = (1 - alpha) * ema_x + alpha * x
                 ema_y = (1 - alpha) * ema_y + alpha * (-y)  # invert Y
+                ema_z = (1 - alpha) * ema_z + alpha * z
+                ema_thr = (1 - alpha) * ema_thr + alpha * thr
                 
                 # état pour l'UI
                 try:
@@ -254,21 +264,28 @@ def _joystick_worker():
                 joystick_state.update({
                     'x': float(max(-1.0, min(1.0, ema_x))),
                     'y': float(max(-1.0, min(1.0, ema_y))),
-                    'z': float(z),
-                    'throttle': float(thr),
+                    'z': float(max(-1.0, min(1.0, ema_z))),        # zoom offset
+                    'throttle': float(max(-1.0, min(1.0, ema_thr))), # jog interpolation
                     'buttons': buttons,
                     'timestamp': now
                 })
                 
                 # Envoi OSC throttlé
                 send_due = (now - last_send) >= (1.0 / JOYSTICK_SEND_HZ)
-                moved_enough = (abs(ema_x - last_x) > JOYSTICK_SEND_EPS) or (abs(ema_y - last_y) > JOYSTICK_SEND_EPS)
+                moved_enough = (abs(ema_x - last_x) > JOYSTICK_SEND_EPS) or (abs(ema_y - last_y) > JOYSTICK_SEND_EPS) or (abs(ema_z - last_z) > JOYSTICK_SEND_EPS) or (abs(ema_thr - last_thr) > JOYSTICK_SEND_EPS)
                 
                 if send_due and moved_enough:
                     # /joy/pt : pan, tilt dans [-1..1]
                     send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
+                    
+                    # /joy/zoom : axe 2 (z) pour zoom offset
+                    send_osc_message('/joy/zoom', float(joystick_state['z']))
+                    
+                    # /interp/jog : axe 3 (throttle) pour jog interpolation
+                    send_osc_message('/interp/jog', float(joystick_state['throttle']))
+                    
                     last_send = now
-                    last_x, last_y = ema_x, ema_y
+                    last_x, last_y, last_z, last_thr = ema_x, ema_y, ema_z, ema_thr
                 
                 clock.tick(JOYSTICK_RATE_HZ)
                 

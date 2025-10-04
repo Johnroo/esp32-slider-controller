@@ -64,23 +64,28 @@ void OSCManager::handleJoystickRoutes(OSCMessage &msg) {
     // Joystick en OSC (-1..+1)
     msg.dispatch("/pan", [](OSCMessage &m){ 
         float pan = clampF(m.getFloat(0), -1.f, +1.f);
-        setRawJoystickValues(pan, joy_raw.tilt, joy_raw.slide);
+        setRawJoystickValues(pan, joy_raw.tilt, joy_raw.zoom, joy_raw.slide);
     });
     
     msg.dispatch("/tilt", [](OSCMessage &m){ 
         float tilt = clampF(m.getFloat(0), -1.f, +1.f);
-        setRawJoystickValues(joy_raw.pan, tilt, joy_raw.slide);
+        setRawJoystickValues(joy_raw.pan, tilt, joy_raw.zoom, joy_raw.slide);
     });
     
     msg.dispatch("/joy/pt", [](OSCMessage &m){ 
         float pan = clampF(m.getFloat(0), -1.f, +1.f);
         float tilt = clampF(m.getFloat(1), -1.f, +1.f);
-        setRawJoystickValues(pan, tilt, joy_raw.slide);
+        setRawJoystickValues(pan, tilt, joy_raw.zoom, joy_raw.slide);
+    });
+    
+    msg.dispatch("/joy/zoom", [](OSCMessage &m){ 
+        float zoom = clampF(m.getFloat(0), -1.f, +1.f);
+        setRawJoystickValues(joy_raw.pan, joy_raw.tilt, zoom, joy_raw.slide);
     });
     
     msg.dispatch("/slide/jog", [](OSCMessage &m){ 
         float slide = clampF(m.getFloat(0), -1.f, +1.f);
-        setRawJoystickValues(joy_raw.pan, joy_raw.tilt, slide);
+        setRawJoystickValues(joy_raw.pan, joy_raw.tilt, joy_raw.zoom, slide);
     });
     
     // Optionnel: réglages runtime

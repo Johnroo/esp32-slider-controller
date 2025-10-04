@@ -111,7 +111,7 @@ float slewLimit(float y, float x, float rate, float dt);
  * @param tilt Référence pour la valeur tilt
  * @param slide Référence pour la valeur slide
  */
-void getRawJoystickValues(float &pan, float &tilt, float &slide);
+void getRawJoystickValues(float &pan, float &tilt, float &zoom, float &slide);
 
 /**
  * @brief Obtient les valeurs filtrées du joystick
@@ -127,7 +127,7 @@ void getFilteredJoystickValues(float &pan, float &tilt, float &slide);
  * @param tilt Valeur tilt (-1..+1)
  * @param slide Valeur slide (-1..+1)
  */
-void setRawJoystickValues(float pan, float tilt, float slide);
+void setRawJoystickValues(float pan, float tilt, float zoom, float slide);
 
 /**
  * @brief Obtient les offsets actuels
