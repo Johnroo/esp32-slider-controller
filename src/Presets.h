@@ -100,6 +100,12 @@ void loadBank(uint8_t idx);
 void updateInterpolation();
 
 /**
+ * @brief Met à jour l'interpolation manuelle (jog)
+ * @details Intègre interp_jog_cmd comme vitesse sur l'axe d'interpolation
+ */
+void updateInterpolationJog();
+
+/**
  * @brief Calcule une position interpolée
  * @param u Fraction d'interpolation (0.0-1.0)
  * @param P Référence pour la position Pan

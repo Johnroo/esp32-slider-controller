@@ -341,6 +341,29 @@ void setInterpJogCommand(float cmd) {
 }
 
 /**
+ * @brief Met à jour l'interpolation manuelle (jog)
+ * @details Intègre interp_jog_cmd comme vitesse sur l'axe d'interpolation
+ */
+void updateInterpolationJog() {
+    static float u = 0.0f;
+    static uint32_t last = millis();
+    uint32_t now = millis();
+    float dt = (now - last) / 1000.0f;
+    last = now;
+
+    // Intégrer la vitesse jog sur [0,1]
+    u += interp_jog_cmd * dt * 0.2f; // 0.2 = vitesse max en fraction/s (ajuster)
+    if (u < 0) u = 0; if (u > 1) u = 1;
+
+    long P, T, Z, S;
+    computeInterpolatedPosition(u, P, T, Z, S);
+    steppers[0]->moveTo(P);
+    steppers[1]->moveTo(T);
+    steppers[2]->moveTo(Z);
+    steppers[3]->moveTo(S);
+}
+
+/**
  * @brief Calcule la durée optimale pour un mouvement
  */
 uint32_t pickDurationMsForDeltas(long deltaP, long deltaT, long deltaZ, long deltaS) {
