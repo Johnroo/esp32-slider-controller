@@ -68,28 +68,41 @@ void initMotors() {
 }
 
 void setupDriversTMC() {
-  Serial.println("🔧 Configuration des drivers TMC2209...");
-  
+  Serial.println("🔧 Configuration des drivers TMC2209 (StealthChop optimisé)...");
+
   Serial2.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
   delay(50);
-  
+
   for (int i = 0; i < NUM_MOTORS; i++) {
     auto d = drivers[i];
-    
-    // Configuration de base
+
+    // --- Initialisation de base ---
     d->begin();
-    d->toff(5);                        // Time off
-    d->blank_time(24);                 // Blank time
-    d->rms_current(cfg[i].current_ma); // Courant RMS original
-    d->microsteps(cfg[i].microsteps);  // Microsteps original
-    d->pwm_autoscale(true);            // Pour StealthChop (crucial pour le courant RMS)
-    d->en_spreadCycle(cfg[i].spreadcycle);
-    d->SGTHRS(cfg[i].sgt);             // StallGuard threshold
-    // d->coolstep_en(cfg[i].coolstep);  // Pas disponible sur TMC2209
-    // d->stallguard(cfg[i].stallguard);  // Pas disponible sur TMC2209
+    d->toff(5);                        // Temps off minimal pour la commutation
+    d->blank_time(24);                 // Temps de blank standard
+    d->rms_current(cfg[i].current_ma); // Courant RMS selon config
+    d->microsteps(cfg[i].microsteps);  // Microstepping selon config
+
+    // --- Configuration StealthChop ---
+    d->pwm_autoscale(true);            // Calibration automatique PWM
+    d->en_spreadCycle(false);          // StealthChop activé (mode silencieux)
+    d->intpol(true);                   // Interpolation interne à 256 microsteps
+
+    // --- StallGuard désactivé par défaut ---
+    d->SGTHRS(0);
+    cfg[i].sgt = 0;
+
+    // --- Log complet ---
+    Serial.printf("✅ TMC2209 moteur %d: %s | µsteps=%d | I=%.1fmA | StealthChop ON | StallGuard OFF\n",
+                  i,
+                  (i == 0 ? "PAN" :
+                   i == 1 ? "TILT" :
+                   i == 2 ? "ZOOM" : "SLIDE"),
+                  cfg[i].microsteps,
+                  (float)cfg[i].current_ma);
   }
-  
-  Serial.println("✅ Configuration TMC2209 terminée");
+
+  Serial.println("🔇 Tous les moteurs configurés en StealthChop silencieux (pwm_autoscale, intpol activés)");
 }
 
 //==================== Fonctions de contrôle ====================
