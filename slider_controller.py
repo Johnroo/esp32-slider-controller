@@ -239,8 +239,12 @@ def _joystick_worker():
                 # deadzone + expo + lissage ; inverser Y pour "stick en haut = +"
                 x = _apply_deadzone(x, JOYSTICK_DEADZONE)
                 y = _apply_deadzone(y, JOYSTICK_DEADZONE)
+                z = _apply_deadzone(z, JOYSTICK_DEADZONE)      # axe 2 : zoom offset
+                thr = 0.0  # axe 3 : désactivé
+
                 x = _expo(x, JOYSTICK_EXPO)
                 y = _expo(y, JOYSTICK_EXPO)
+                z = _expo(z, JOYSTICK_EXPO)
                 ema_x = (1 - alpha) * ema_x + alpha * x
                 ema_y = (1 - alpha) * ema_y + alpha * (-y)  # invert Y
                 
@@ -267,6 +271,8 @@ def _joystick_worker():
                 if send_due and moved_enough:
                     # /joy/pt : pan, tilt dans [-1..1]
                     send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
+                    # /joy/zoom : axe 2 (twist) pour zoom offset
+                    send_osc_message('/joy/zoom', float(joystick_state['z']))
                     last_send = now
                     last_x, last_y = ema_x, ema_y
                 

@@ -565,7 +565,20 @@
                         <canvas id="joyCanvas" width="180" height="180"></canvas>
                         <div class="value-display">X: <span id="joyX">0.00</span> | Y: <span id="joyY">0.00</span></div>
                         <div id="joyHint" class="hint">Recherche d'un joystick USB…</div>
-            <button class="btn" id="joyReconnectBtn" title="Rescanner le joystick" style="margin-top:8px">🔁 Reconnect Joystick</button>
+                        <button class="btn" id="joyReconnectBtn" title="Rescanner le joystick" style="margin-top:8px">🔁 Reconnect Joystick</button>
+                    </div>
+
+                    <!-- Axes supplémentaires -->
+                    <div class="joy-visual">
+                        <h4>🔄 Twist (Zoom Offset)</h4>
+                        <canvas id="twistCanvas" width="120" height="120"></canvas>
+                        <div class="value-display">Z: <span id="joyZ">0.00</span></div>
+                    </div>
+
+                    <div class="joy-visual">
+                        <h4>🚀 Throttle (Désactivé)</h4>
+                        <canvas id="throttleCanvas" width="120" height="120"></canvas>
+                        <div class="value-display">T: <span id="joyThrottle">0.00</span></div>
                     </div>
 
                     <!-- Fallback sliders (cachés si joystick connecté) -->
