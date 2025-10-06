@@ -83,6 +83,13 @@ void OSCManager::handleJoystickRoutes(OSCMessage &msg) {
         setRawJoystickValues(joy_raw.pan, joy_raw.tilt, slide);
     });
     
+    // Zoom offset via OSC (twist)
+    msg.dispatch("/joy/zoom", [](OSCMessage &m){
+        float z = clampF(m.getFloat(0), -1.f, +1.f);
+        joy_raw.zoom = z;
+        Serial.printf("🎛️ Joy zoom = %.3f\n", z);
+    });
+    
     // Optionnel: réglages runtime
     msg.dispatch("/joy/config", [](OSCMessage &m){
         JoyCfg config = getJoystickConfig();
