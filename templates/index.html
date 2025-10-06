@@ -843,6 +843,27 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             sendTiltOffset(value);
         });
 
+        // Spring-back to zero on release for offset sliders
+        function addSpringBack(sliderId, valueId, sender) {
+            const el = document.getElementById(sliderId);
+            const valEl = document.getElementById(valueId);
+            const reset = () => {
+                el.value = 0;
+                valEl.textContent = '0.00';
+                sender(0);
+            };
+            el.addEventListener('mouseup', reset);
+            el.addEventListener('touchend', reset, {passive: true});
+            el.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === 'Escape') reset(); });
+            // Also reset when leaving the element while dragging
+            el.addEventListener('mouseleave', (e) => { if (e.buttons === 1) reset(); });
+        }
+
+        addSpringBack('panOffset',   'panValue',   sendPanOffset);
+        addSpringBack('tiltOffset',  'tiltValue',  sendTiltOffset);
+        addSpringBack('zoomOffset',  'zoomValue',  sendZoomOffset);
+        addSpringBack('slideOffset', 'slideValue', sendSlideOffset);
+
         document.getElementById('zoomOffset').addEventListener('input', function() {
             const value = parseFloat(this.value);
             document.getElementById('zoomValue').textContent = value.toFixed(2);
