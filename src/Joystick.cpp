@@ -133,7 +133,8 @@ void updateJoystick() {
                 (fabsf(joy_filt.zoom) > BAKE_THRESH) ||
                 (fabsf(joy_filt.slide)> BAKE_THRESH);
 
-  if (moving && (isActive() || isInterpolationActive()) && (now - lastBake > BAKE_COOLDOWN_MS)) {
+  if (moving && (isActive() || isInterpolationActive() || fabs(interp_jog_cmd) > 0.001f)
+      && (now - lastBake > BAKE_COOLDOWN_MS)) {
     // 1) Intégrer les offsets dans la cible du mouvement courant (recall) 
     //    ou mettre à jour les offsets persistants côté interpolation (si tu as ajouté Prompt #15)
     bakeOffsetsIntoCurrentMove(pan_offset_latched, tilt_offset_latched,
@@ -154,14 +155,16 @@ void updateJoystick() {
                    fabsf(joy_filt.slide) > 0.01f);
 
   if (wasMoving && !isMoving) {
-      Serial.println("🍞 Bake non destructif des offsets dans la base du mouvement");
-      bakeOffsetsIntoCurrentMove(
-          pan_offset_latched, 
-          tilt_offset_latched, 
-          zoom_offset_latched, 
-          slide_offset_latched
-      );
-      saveOffsetBaseline(); // garde cette nouvelle base comme référence
+      if (isActive() || isInterpolationActive() || fabs(interp_jog_cmd) > 0.001f) {
+          Serial.println("🍞 Bake non destructif des offsets dans la base du mouvement");
+          bakeOffsetsIntoCurrentMove(
+              pan_offset_latched, 
+              tilt_offset_latched, 
+              zoom_offset_latched, 
+              slide_offset_latched
+          );
+          saveOffsetBaseline(); // garde cette nouvelle base comme référence
+      }
   }
   wasMoving = isMoving;
 }
