@@ -217,6 +217,7 @@ def _joystick_worker():
             clock = pygame.time.Clock()
             last_send = time.time()
             last_x, last_y = 0.0, 0.0
+            last_z = 0.0
             ema_x = 0.0
             ema_y = 0.0
             alpha = 0.2  # lissage léger
@@ -266,15 +267,19 @@ def _joystick_worker():
                 
                 # Envoi OSC throttlé
                 send_due = (now - last_send) >= (1.0 / JOYSTICK_SEND_HZ)
-                moved_enough = (abs(ema_x - last_x) > JOYSTICK_SEND_EPS) or (abs(ema_y - last_y) > JOYSTICK_SEND_EPS)
-                
-                if send_due and moved_enough:
-                    # /joy/pt : pan, tilt dans [-1..1]
-                    send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
-                    # /zoom : axe 2 (twist) pour zoom offset
-                    send_osc_message('/zoom', float(joystick_state['z']))
+                moved_xy = (abs(ema_x - last_x) > JOYSTICK_SEND_EPS) or (abs(ema_y - last_y) > JOYSTICK_SEND_EPS)
+                moved_z = abs(z - last_z) > JOYSTICK_SEND_EPS
+
+                if send_due and (moved_xy or moved_z):
+                    if moved_xy:
+                        # /joy/pt : pan, tilt dans [-1..1]
+                        send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
+                        last_x, last_y = ema_x, ema_y
+                    if moved_z:
+                        # /zoom : axe 2 (twist) pour zoom offset
+                        send_osc_message('/zoom', float(joystick_state['z']))
+                        last_z = z
                     last_send = now
-                    last_x, last_y = ema_x, ema_y
                 
                 clock.tick(JOYSTICK_RATE_HZ)
                 
