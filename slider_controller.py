@@ -53,6 +53,13 @@ def _expo(v: float, expo: float) -> float:
 def _apply_deadzone(v: float, dz: float) -> float:
     return 0.0 if abs(v) < dz else v
 
+def map_range(value: float, in_min: float, in_max: float, out_min: float, out_max: float) -> float:
+    """Map value linearly from one range to another."""
+    if in_max == in_min:
+        return out_min
+    t = (value - in_min) / (in_max - in_min)
+    return out_min + t * (out_max - out_min)
+
 def send_osc_message(address, *args):
     """Envoie un message OSC vers l'ESP32"""
     try:
@@ -221,6 +228,10 @@ def _joystick_worker():
             ema_x = 0.0
             ema_y = 0.0
             alpha = 0.2  # lissage léger
+            # État pour jog interpolation (via throttle + boutons 0/1)
+            last_btn0 = False
+            last_btn1 = False
+            last_jog_value = 0.0
             
             while js is not None:
                 # vider la queue d'événements
@@ -241,7 +252,7 @@ def _joystick_worker():
                 x = _apply_deadzone(x, JOYSTICK_DEADZONE)
                 y = _apply_deadzone(y, JOYSTICK_DEADZONE)
                 z = _apply_deadzone(z, JOYSTICK_DEADZONE)      # axe 2 : zoom offset
-                thr = 0.0  # axe 3 : désactivé
+                # throttle (axe 3) utilisé pour la vitesse de jog interpolation, garder la valeur brute [-1..1]
 
                 x = _expo(x, JOYSTICK_EXPO)
                 y = _expo(y, JOYSTICK_EXPO)
@@ -254,6 +265,8 @@ def _joystick_worker():
                     buttons = [bool(js.get_button(i)) for i in range(js.get_numbuttons())]
                 except Exception:
                     buttons = []
+                btn0 = buttons[0] if len(buttons) > 0 else False
+                btn1 = buttons[1] if len(buttons) > 1 else False
                 
                 now = time.time()
                 joystick_state.update({
@@ -264,6 +277,12 @@ def _joystick_worker():
                     'buttons': buttons,
                     'timestamp': now
                 })
+                
+                # Lecture throttle (axe 3) → vitesse jog interpolation [0..1]
+                jog_speed = map_range(thr, -1.0, 1.0, 0.0, 1.0)
+                # Bouton 0/1 → sens du jog interpolation (-1, 0, +1)
+                jog_dir = -1.0 if (btn0 and not btn1) else (1.0 if (btn1 and not btn0) else 0.0)
+                jog_value = jog_dir * jog_speed
                 
                 # Envoi OSC throttlé
                 send_due = (now - last_send) >= (1.0 / JOYSTICK_SEND_HZ)
@@ -279,6 +298,20 @@ def _joystick_worker():
                         # /zoom : axe 2 (twist) pour zoom offset
                         send_osc_message('/zoom', float(joystick_state['z']))
                         last_z = z
+                    last_send = now
+
+                # Boutons 0/1 → jog interpolation tant que pressés, vitesse = throttle
+                buttons_changed = (btn0 != last_btn0) or (btn1 != last_btn1)
+                jog_changed = abs(jog_value - last_jog_value) > JOYSTICK_SEND_EPS
+                if buttons_changed:
+                    # start/stop immédiat
+                    send_osc_message('/interp/jog', float(jog_value))
+                    last_btn0, last_btn1 = btn0, btn1
+                    last_jog_value = jog_value
+                    last_send = now
+                elif send_due and jog_changed:
+                    send_osc_message('/interp/jog', float(jog_value))
+                    last_jog_value = jog_value
                     last_send = now
                 
                 clock.tick(JOYSTICK_RATE_HZ)
