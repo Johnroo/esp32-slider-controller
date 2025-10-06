@@ -31,6 +31,7 @@ JOYSTICK_EXPO = 0.35      # 0..1 (0 = linéaire, 0.35 = doux, 0.7 = très expo)
 JOYSTICK_RATE_HZ = 120    # fréquence de polling
 JOYSTICK_SEND_EPS = 0.01  # variation minimale pour renvoyer
 JOYSTICK_SEND_HZ = 60     # max envois OSC/s (throttle)
+JOYSTICK_THROTTLE_INVERT = True  # inverse la course de l'axe 3 (Logitech throttle)
 
 joystick_state = {
     'connected': False,
@@ -279,7 +280,12 @@ def _joystick_worker():
                 })
                 
                 # Lecture throttle (axe 3) → vitesse jog interpolation [0..1]
-                jog_speed = map_range(thr, -1.0, 1.0, 0.0, 1.0)
+                if JOYSTICK_THROTTLE_INVERT:
+                    # inversé: -1..1 -> 1..0
+                    jog_speed = map_range(thr, -1.0, 1.0, 1.0, 0.0)
+                else:
+                    # normal: -1..1 -> 0..1
+                    jog_speed = map_range(thr, -1.0, 1.0, 0.0, 1.0)
                 # Bouton 0/1 → sens du jog interpolation (-1, 0, +1)
                 jog_dir = -1.0 if (btn0 and not btn1) else (1.0 if (btn1 and not btn0) else 0.0)
                 jog_value = jog_dir * jog_speed
