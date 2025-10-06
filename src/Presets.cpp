@@ -418,8 +418,6 @@ void updateInterpolationJog() {
         interp_offset_z += zoom_offset_latched;
         interp_offset_s += slide_offset_latched;
 
-        // Recalage baseline
-        saveOffsetBaseline();
         resetLatchedOffsets();
     }
 
