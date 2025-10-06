@@ -271,8 +271,8 @@ def _joystick_worker():
                 if send_due and moved_enough:
                     # /joy/pt : pan, tilt dans [-1..1]
                     send_osc_message('/joy/pt', float(joystick_state['x']), float(joystick_state['y']))
-                    # /joy/zoom : axe 2 (twist) pour zoom offset
-                    send_osc_message('/joy/zoom', float(joystick_state['z']))
+                    # /zoom : axe 2 (twist) pour zoom offset
+                    send_osc_message('/zoom', float(joystick_state['z']))
                     last_send = now
                     last_x, last_y = ema_x, ema_y
                 
@@ -480,7 +480,7 @@ def api_joystick_zoom():
     value = float(data.get('value', 0.0))  # -1.0 to 1.0
     value = max(-1.0, min(1.0, value))
     
-    success = send_osc_message('/joy/zoom', value)
+    success = send_osc_message('/zoom', value)
     return jsonify({'success': True, 'value': value})
 
 @app.route('/api/joystick/slide', methods=['POST'])
@@ -490,7 +490,7 @@ def api_joystick_slide():
     value = float(data.get('value', 0.0))  # -1.0 to 1.0
     value = max(-1.0, min(1.0, value))
     
-    success = send_osc_message('/slide/jog', value)
+    success = send_osc_message('/slide', value)
     return jsonify({'success': True, 'value': value})
 
 @app.route('/api/joystick/combined', methods=['POST'])
@@ -514,7 +514,7 @@ def api_slide_jog():
     value = float(data.get('value', 0.0))  # -1.0 to 1.0
     value = max(-1.0, min(1.0, value))
     
-    success = send_osc_message('/slide/jog', value)
+    success = send_osc_message('/slide', value)
     return jsonify({'success': True, 'value': value})
 
 @app.route('/api/slide/goto', methods=['POST'])
@@ -650,7 +650,7 @@ def api_slide_ab_set():
 def api_stop():
     """Stop all movement"""
     # Stop slide jog
-    send_osc_message('/slide/jog', 0.0)
+    send_osc_message('/slide', 0.0)
     # Reset joystick offsets
     send_osc_message('/pan', 0.0)
     send_osc_message('/tilt', 0.0)

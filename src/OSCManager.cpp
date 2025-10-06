@@ -71,6 +71,13 @@ void OSCManager::handleJoystickRoutes(OSCMessage &msg) {
         float tilt = clampF(m.getFloat(0), -1.f, +1.f);
         setRawJoystickValues(joy_raw.pan, tilt, joy_raw.slide);
     });
+
+    // Zoom offset direct (aligné avec pan/tilt)
+    msg.dispatch("/zoom", [](OSCMessage &m){
+        float z = clampF(m.getFloat(0), -1.f, +1.f);
+        joy_raw.zoom = z;
+        Serial.printf("🎛️ Zoom (offset) = %.3f\n", z);
+    });
     
     msg.dispatch("/joy/pt", [](OSCMessage &m){ 
         float pan = clampF(m.getFloat(0), -1.f, +1.f);
@@ -78,16 +85,21 @@ void OSCManager::handleJoystickRoutes(OSCMessage &msg) {
         setRawJoystickValues(pan, tilt, joy_raw.slide);
     });
     
+    // Slide offset direct (aligné avec pan/tilt/zoom)
+    msg.dispatch("/slide", [](OSCMessage &m){ 
+        float slide = clampF(m.getFloat(0), -1.f, +1.f);
+        setRawJoystickValues(joy_raw.pan, joy_raw.tilt, slide);
+        Serial.printf("🎛️ Slide (offset) = %.3f\n", slide);
+    });
+    
+    // Alias rétrocompatibilité
     msg.dispatch("/slide/jog", [](OSCMessage &m){ 
         float slide = clampF(m.getFloat(0), -1.f, +1.f);
         setRawJoystickValues(joy_raw.pan, joy_raw.tilt, slide);
     });
-    
-    // Zoom offset via OSC (twist)
     msg.dispatch("/joy/zoom", [](OSCMessage &m){
         float z = clampF(m.getFloat(0), -1.f, +1.f);
         joy_raw.zoom = z;
-        Serial.printf("🎛️ Joy zoom = %.3f\n", z);
     });
     
     // Optionnel: réglages runtime
