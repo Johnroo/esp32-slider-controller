@@ -473,6 +473,26 @@ def api_joystick_tilt():
     success = send_osc_message('/tilt', value)
     return jsonify({'success': True, 'value': value})
 
+@app.route('/api/joystick/zoom', methods=['POST'])
+def api_joystick_zoom():
+    """Envoie un offset zoom via le slider"""
+    data = request.get_json()
+    value = float(data.get('value', 0.0))  # -1.0 to 1.0
+    value = max(-1.0, min(1.0, value))
+    
+    success = send_osc_message('/joy/zoom', value)
+    return jsonify({'success': True, 'value': value})
+
+@app.route('/api/joystick/slide', methods=['POST'])
+def api_joystick_slide():
+    """Envoie un offset slide via le slider"""
+    data = request.get_json()
+    value = float(data.get('value', 0.0))  # -1.0 to 1.0
+    value = max(-1.0, min(1.0, value))
+    
+    success = send_osc_message('/slide/jog', value)
+    return jsonify({'success': True, 'value': value})
+
 @app.route('/api/joystick/combined', methods=['POST'])
 def api_joystick_combined():
     """Envoie pan et tilt combinés"""
