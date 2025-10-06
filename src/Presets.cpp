@@ -282,10 +282,10 @@ void updateInterpolation() {
     }
 
     // --- Application des offsets persistants + joystick instantané ---
-    P += interp_offset_p + getEffectivePanOffset(true);
-    T += interp_offset_t + getEffectiveTiltOffset(true);
-    Z += interp_offset_z + getEffectiveZoomOffset(true);
-    S += interp_offset_s + getEffectiveSlideOffset(true);
+    P += interp_offset_p + getEffectivePanOffset(false);
+    T += interp_offset_t + getEffectiveTiltOffset(false);
+    Z += interp_offset_z + getEffectiveZoomOffset(false);
+    S += interp_offset_s + getEffectiveSlideOffset(false);
     
     // Clamp limites
     P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
@@ -424,10 +424,10 @@ void updateInterpolationJog() {
     }
 
     // --- Application des offsets persistants + joystick instantané ---
-    P += interp_offset_p + getEffectivePanOffset(true);
-    T += interp_offset_t + getEffectiveTiltOffset(true);
-    Z += interp_offset_z + getEffectiveZoomOffset(true);
-    S += interp_offset_s + getEffectiveSlideOffset(true);
+    P += interp_offset_p + getEffectivePanOffset(false);
+    T += interp_offset_t + getEffectiveTiltOffset(false);
+    Z += interp_offset_z + getEffectiveZoomOffset(false);
+    S += interp_offset_s + getEffectiveSlideOffset(false);
     
     // Clamp limites
     P = clampL(P, cfg[0].min_limit, cfg[0].max_limit);
