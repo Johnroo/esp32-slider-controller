@@ -442,14 +442,6 @@ void updateInterpolationJog() {
     }
     if (fabs(interp_jog_cmd) < 0.001f) baselineSaved = false;
     
-    // Mise à jour des offsets persistants pendant que le joystick bouge
-    if (fabsf(joy_filt.pan) > 0.01f || fabsf(joy_filt.tilt) > 0.01f ||
-        fabsf(joy_filt.zoom) > 0.01f || fabsf(joy_filt.slide) > 0.01f) {
-        interp_offset_p = pan_offset_latched;
-        interp_offset_t = tilt_offset_latched;
-        interp_offset_z = zoom_offset_latched;
-        interp_offset_s = slide_offset_latched;
-    }
     
     steppers[0]->moveTo(P);
     steppers[1]->moveTo(T);
