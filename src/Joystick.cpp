@@ -45,14 +45,17 @@ void initJoystick() {
   // Initialiser les structures
   joy_raw.pan = 0;
   joy_raw.tilt = 0;
+  joy_raw.zoom = 0;
   joy_raw.slide = 0;
   
   joy_cmd.pan = 0;
   joy_cmd.tilt = 0;
+  joy_cmd.zoom = 0;
   joy_cmd.slide = 0;
   
   joy_filt.pan = 0;
   joy_filt.tilt = 0;
+  joy_filt.zoom = 0;
   joy_filt.slide = 0;
   
   // Initialiser les offsets
@@ -88,11 +91,13 @@ void updateJoystick() {
   // Appliquer deadzone et exposition
   joy_cmd.pan   = applyDeadzoneExpo(joy_raw.pan,  joy.deadzone, joy.expo);
   joy_cmd.tilt  = applyDeadzoneExpo(joy_raw.tilt, joy.deadzone, joy.expo);
+  joy_cmd.zoom  = applyDeadzoneExpo(joy_raw.zoom, joy.deadzone, joy.expo);
   joy_cmd.slide = applyDeadzoneExpo(joy_raw.slide, joy.deadzone, joy.expo);
 
   // Appliquer filtrage et slew limiting
   joy_filt.pan   = slewLimit(joy_filt.pan,   iir1Pole(joy_filt.pan,   joy_cmd.pan,   joy.filt_hz, dt), joy.slew_per_s/(float)PAN_OFFSET_RANGE, dt);
   joy_filt.tilt  = slewLimit(joy_filt.tilt,  iir1Pole(joy_filt.tilt,  joy_cmd.tilt,  joy.filt_hz, dt), joy.slew_per_s/(float)TILT_OFFSET_RANGE, dt);
+  joy_filt.zoom  = slewLimit(joy_filt.zoom,  iir1Pole(joy_filt.zoom,  joy_cmd.zoom,  joy.filt_hz, dt), joy.slew_per_s/(float)ZOOM_OFFSET_RANGE, dt);
   joy_filt.slide = slewLimit(joy_filt.slide, iir1Pole(joy_filt.slide, joy_cmd.slide, joy.filt_hz, dt), joy.slew_per_s / SLIDE_JOG_SPEED, dt);
 
   // Intégration des offsets joystick (comportement "latched")
