@@ -389,19 +389,35 @@ void setInterpJogCommand(float cmd) {
  * @details Intègre interp_jog_cmd comme vitesse sur l'axe d'interpolation
  */
 void updateInterpolationJog() {
-    static float u = 0.0f;
-    static uint32_t last = millis();
+    // Position d'interpolation continue sur [0..1]
+    static float interp_pos = 0.0f;
+    // Filtre IIR de la vitesse utilisateur (commande OSC /interp/jog)
+    static float vel = 0.0f;
+    // Mémoire pour intégration temporelle
+    static uint32_t last_ms = millis();
     static bool baselineSaved = false;
-    uint32_t now = millis();
-    float dt = (now - last) / 1000.0f;
-    last = now;
 
-    // Intégrer la vitesse jog sur [0,1]
-    u += interp_jog_cmd * dt * 0.2f; // 0.2 = vitesse max en fraction/s (ajuster)
-    if (u < 0) u = 0; if (u > 1) u = 1;
+    const float ALPHA = 0.1f;                 // Filtrage douceur (0..1)
+    const float MAX_SPEED_FRAC_PER_S = 0.5f;  // Vitesse max d'avancement en fraction par seconde
+
+    uint32_t now = millis();
+    float dt = (now >= last_ms) ? ((now - last_ms) * 0.001f) : 0.0f;
+    last_ms = now;
+    if (dt < 0.0f) dt = 0.0f;                 // Sécurité si reset d'horloge
+    if (dt > 0.1f) dt = 0.1f;                  // Clamp dt pour éviter gros sauts (100 ms)
+
+    // Filtrage de la vitesse pour lisser les variations utilisateur
+    // interp_jog_cmd est dans [-1..+1] et représente une vitesse cible
+    vel += ALPHA * (interp_jog_cmd - vel);
+
+    // Intégration de la vitesse en temps
+    interp_pos += vel * MAX_SPEED_FRAC_PER_S * dt;
+    // Clamp bornes 0..1
+    if (interp_pos < 0.0f) interp_pos = 0.0f;
+    if (interp_pos > 1.0f) interp_pos = 1.0f;
 
     long P, T, Z, S;
-    computeInterpolatedPosition(u, P, T, Z, S);
+    computeInterpolatedPosition(interp_pos, P, T, Z, S);
 
     // --- Mise à jour des offsets persistants si joystick bouge ---
     const float JOY_THRESH = 0.03f;

@@ -45,7 +45,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 #define DEFAULT_PAN_MAX_SPEED    20000
 #define DEFAULT_TILT_MAX_SPEED   20000
 #define DEFAULT_ZOOM_MAX_SPEED   20000
-#define DEFAULT_SLIDE_MAX_SPEED  10000
+#define DEFAULT_SLIDE_MAX_SPEED  20000
 
 // Accélérations par défaut (steps/s²)
 #define DEFAULT_PAN_ACCEL    12000
@@ -63,7 +63,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 #define DEFAULT_PAN_MICROSTEPS    16
 #define DEFAULT_TILT_MICROSTEPS   16
 #define DEFAULT_ZOOM_MICROSTEPS   16
-#define DEFAULT_SLIDE_MICROSTEPS  8
+#define DEFAULT_SLIDE_MICROSTEPS  16
 
 // Limites par défaut (steps)
 #define DEFAULT_PAN_MIN_LIMIT    -27106
@@ -78,7 +78,7 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 //==================== Configuration du homing ====================
 
 // Paramètres de homing
-#define HOMING_SPEED    9000     // steps/s
+#define HOMING_SPEED    18000     // steps/s
 #define HOMING_ACCEL    60000    // accel élevée pour atteindre vitesse rapidement
 #define SG_DETECT       20       // seuil SG_RESULT pour détecter stall
 #define HOMING_TIMEOUT  20000    // ms
