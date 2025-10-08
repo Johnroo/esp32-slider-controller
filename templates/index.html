@@ -751,8 +751,34 @@
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="panMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updatePanAccel()">
                     <span id="panAccelValue">12000</span>
-                        </div>
-                    </div>
+                </div>
+                <hr style="margin: 10px 0; border: none; border-top: 1px solid #444;">
+                <div class="control-group">
+                    <label>Microsteps:</label>
+                    <select id="panMicrosteps" onchange="updatePanConfig()">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4">4</option>
+                        <option value="8">8</option>
+                        <option value="16" selected>16</option>
+                        <option value="32">32</option>
+                        <option value="64">64</option>
+                        <option value="128">128</option>
+                        <option value="256">256</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Current (mA):</label>
+                    <input type="number" id="panCurrent" min="100" max="2000" step="50" value="1700" onchange="updatePanConfig()">
+                </div>
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="panMode" onchange="updatePanConfig()">
+                        <option value="0" selected>StealthChop</option>
+                        <option value="1">SpreadCycle</option>
+                    </select>
+                </div>
+            </div>
 
             <!-- Tilt Motor -->
             <div class="motor-config">
@@ -766,8 +792,34 @@
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="tiltMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateTiltAccel()">
                     <span id="tiltAccelValue">12000</span>
-                            </div>
-                            </div>
+                </div>
+                <hr style="margin: 10px 0; border: none; border-top: 1px solid #444;">
+                <div class="control-group">
+                    <label>Microsteps:</label>
+                    <select id="tiltMicrosteps" onchange="updateTiltConfig()">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4">4</option>
+                        <option value="8">8</option>
+                        <option value="16" selected>16</option>
+                        <option value="32">32</option>
+                        <option value="64">64</option>
+                        <option value="128">128</option>
+                        <option value="256">256</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Current (mA):</label>
+                    <input type="number" id="tiltCurrent" min="100" max="2000" step="50" value="1700" onchange="updateTiltConfig()">
+                </div>
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="tiltMode" onchange="updateTiltConfig()">
+                        <option value="0" selected>StealthChop</option>
+                        <option value="1">SpreadCycle</option>
+                    </select>
+                </div>
+            </div>
             
             <!-- Zoom Motor -->
             <div class="motor-config">
@@ -781,8 +833,34 @@
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="zoomMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateZoomAccel()">
                     <span id="zoomAccelValue">12000</span>
-                        </div>
-                        </div>
+                </div>
+                <hr style="margin: 10px 0; border: none; border-top: 1px solid #444;">
+                <div class="control-group">
+                    <label>Microsteps:</label>
+                    <select id="zoomMicrosteps" onchange="updateZoomConfig()">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4">4</option>
+                        <option value="8">8</option>
+                        <option value="16" selected>16</option>
+                        <option value="32">32</option>
+                        <option value="64">64</option>
+                        <option value="128">128</option>
+                        <option value="256">256</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Current (mA):</label>
+                    <input type="number" id="zoomCurrent" min="100" max="2000" step="50" value="300" onchange="updateZoomConfig()">
+                </div>
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="zoomMode" onchange="updateZoomConfig()">
+                        <option value="0" selected>StealthChop</option>
+                        <option value="1">SpreadCycle</option>
+                    </select>
+                </div>
+            </div>
             
             <!-- Slide Motor -->
             <div class="motor-config">
@@ -796,6 +874,32 @@
                     <label>Max Acceleration (steps/s²):</label>
                     <input type="number" id="slideMaxAccel" min="1000" max="999999" step="100" value="12000" onchange="updateSlideAccel()">
                     <span id="slideAccelValue">12000</span>
+                </div>
+                <hr style="margin: 10px 0; border: none; border-top: 1px solid #444;">
+                <div class="control-group">
+                    <label>Microsteps:</label>
+                    <select id="slideMicrosteps" onchange="updateSlideConfig()">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4">4</option>
+                        <option value="8" selected>8</option>
+                        <option value="16">16</option>
+                        <option value="32">32</option>
+                        <option value="64">64</option>
+                        <option value="128">128</option>
+                        <option value="256">256</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Current (mA):</label>
+                    <input type="number" id="slideCurrent" min="100" max="2000" step="50" value="2000" onchange="updateSlideConfig()">
+                </div>
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="slideMode" onchange="updateSlideConfig()">
+                        <option value="0" selected>StealthChop</option>
+                        <option value="1">SpreadCycle</option>
+                    </select>
                 </div>
                 
                 <!-- Homing / StallGuard -->
@@ -1327,6 +1431,28 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             });
         }
 
+        function updatePanConfig() {
+            const micro = parseInt(document.getElementById('panMicrosteps').value);
+            const current = parseInt(document.getElementById('panCurrent').value);
+            const mode = parseInt(document.getElementById('panMode').value);
+            fetch('/api/motor/pan/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({microsteps: micro, current: current, spreadcycle: mode})
+            }).then(() => showMotorConfigFeedback('Pan'));
+        }
+
+        function showMotorConfigFeedback(motorName) {
+            const status = document.getElementById('status');
+            const originalText = status.textContent;
+            status.textContent = `✅ ${motorName} driver updated`;
+            status.style.backgroundColor = '#2d5016';
+            setTimeout(() => {
+                status.textContent = originalText;
+                status.style.backgroundColor = '';
+            }, 2000);
+        }
+
         function updateTiltSpeed() {
             const speed = parseInt(document.getElementById('tiltMaxSpeed').value);
             document.getElementById('tiltSpeedValue').textContent = speed;
@@ -1347,6 +1473,17 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({accel: accel})
             });
+        }
+
+        function updateTiltConfig() {
+            const micro = parseInt(document.getElementById('tiltMicrosteps').value);
+            const current = parseInt(document.getElementById('tiltCurrent').value);
+            const mode = parseInt(document.getElementById('tiltMode').value);
+            fetch('/api/motor/tilt/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({microsteps: micro, current: current, spreadcycle: mode})
+            }).then(() => showMotorConfigFeedback('Tilt'));
         }
 
         function updateZoomSpeed() {
@@ -1371,6 +1508,17 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
             });
         }
 
+        function updateZoomConfig() {
+            const micro = parseInt(document.getElementById('zoomMicrosteps').value);
+            const current = parseInt(document.getElementById('zoomCurrent').value);
+            const mode = parseInt(document.getElementById('zoomMode').value);
+            fetch('/api/motor/zoom/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({microsteps: micro, current: current, spreadcycle: mode})
+            }).then(() => showMotorConfigFeedback('Zoom'));
+        }
+
         function updateSlideSpeed() {
             const speed = parseInt(document.getElementById('slideMaxSpeed').value);
             document.getElementById('slideSpeedValue').textContent = speed;
@@ -1391,6 +1539,17 @@ document.getElementById('joyReconnectBtn')?.addEventListener('click', async () =
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({accel: accel})
             });
+        }
+
+        function updateSlideConfig() {
+            const micro = parseInt(document.getElementById('slideMicrosteps').value);
+            const current = parseInt(document.getElementById('slideCurrent').value);
+            const mode = parseInt(document.getElementById('slideMode').value);
+            fetch('/api/motor/slide/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({microsteps: micro, current: current, spreadcycle: mode})
+            }).then(() => showMotorConfigFeedback('Slide'));
         }
 
         function homeSlide() {

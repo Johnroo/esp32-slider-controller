@@ -833,6 +833,42 @@ def api_motor_slide_max_accel():
     success = send_osc_message('/motor/slide/max_accel', accel)
     return jsonify({'success': success, 'accel': accel})
 
+@app.route('/api/motor/<axis>/config', methods=['POST'])
+def api_motor_config(axis):
+    """
+    Change runtime motor config (microsteps, current, spreadcycle/stealthchop)
+    axis: 'pan' | 'tilt' | 'zoom' | 'slide'
+    """
+    data = request.get_json() or {}
+    micro = int(data.get('microsteps', 0))
+    current = int(data.get('current', 0))
+    spread = bool(data.get('spreadcycle', False))
+
+    motor_id = {'pan': 0, 'tilt': 1, 'zoom': 2, 'slide': 3}.get(axis, None)
+    if motor_id is None:
+        return jsonify({'success': False, 'error': 'Invalid axis'}), 400
+
+    # Validation microsteps (valeurs TMC2209 valides)
+    valid_microsteps = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    if micro > 0 and micro not in valid_microsteps:
+        return jsonify({'success': False, 'error': f'Invalid microsteps: {micro}'}), 400
+
+    # Validation courant (max 2000 mA)
+    if current > 2000:
+        return jsonify({'success': False, 'error': f'Current too high: {current} mA (max 2000)'}), 400
+
+    # Envoyer OSC vers l'ESP32
+    success = send_osc_message('/motor/config', motor_id, micro, current, 1 if spread else 0)
+    
+    return jsonify({
+        'success': success,
+        'motor': axis,
+        'motor_id': motor_id,
+        'microsteps': micro,
+        'current': current,
+        'spreadcycle': spread
+    })
+
 # Routes pour gestion des banques
 @app.route('/api/bank/set', methods=['POST'])
 def api_bank_set():

@@ -148,3 +148,42 @@ void emergencyStop() {
   // Reset des positions
   panPos = tiltPos = zoomPos = slidePos = 0;
 }
+
+/**
+ * @brief Met à jour les paramètres du driver TMC2209 en temps réel
+ * @param motor ID du moteur (0=PAN, 1=TILT, 2=ZOOM, 3=SLIDE)
+ * @param microsteps Nombre de microsteps (0 = pas de changement, >0 = nouvelle valeur)
+ * @param current_mA Courant RMS en mA (0 = pas de changement, >0 = nouvelle valeur)
+ * @param spreadCycle Mode spreadCycle (true/false)
+ */
+void updateMotorDriverParam(int motor, int microsteps, int current_mA, bool spreadCycle) {
+  if (motor < 0 || motor >= NUM_MOTORS || !drivers[motor]) {
+    Serial.printf("❌ Moteur %d invalide\n", motor);
+    return;
+  }
+
+  auto d = drivers[motor];
+  
+  // Mise à jour microsteps si > 0
+  if (microsteps > 0) {
+    d->microsteps(microsteps);
+    cfg[motor].microsteps = microsteps;
+    Serial.printf("🔧 Moteur %d: microsteps -> %d\n", motor, microsteps);
+  }
+  
+  // Mise à jour courant RMS si > 0
+  if (current_mA > 0) {
+    d->rms_current(current_mA);
+    cfg[motor].current_ma = current_mA;
+    Serial.printf("🔧 Moteur %d: courant RMS -> %d mA\n", motor, current_mA);
+  }
+  
+  // Mise à jour spreadCycle
+  d->en_spreadCycle(spreadCycle);
+  cfg[motor].spreadcycle = spreadCycle;
+  Serial.printf("🔧 Moteur %d: spreadCycle -> %s\n", motor, spreadCycle ? "ON" : "OFF");
+  
+  Serial.printf("✅ Moteur %d paramètres mis à jour: µsteps=%d, I=%dmA, spreadCycle=%s\n", 
+                motor, cfg[motor].microsteps, cfg[motor].current_ma, 
+                cfg[motor].spreadcycle ? "ON" : "OFF");
+}

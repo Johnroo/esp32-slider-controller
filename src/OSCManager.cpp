@@ -449,6 +449,119 @@ void OSCManager::handleMotorConfigRoutes(OSCMessage &msg) {
             }
         }
     });
+
+    // Routes pour mise à jour des paramètres driver TMC2209 en temps réel
+    msg.dispatch("/motor/config", [](OSCMessage &m){
+        if (m.size() < 4) {
+            Serial.println("❌ /motor/config: 4 paramètres requis (id, microsteps, current, spreadCycle)");
+            return;
+        }
+        
+        int id = m.getInt(0);
+        int microsteps = m.getInt(1);
+        int current = m.getInt(2);
+        int spreadCycle = m.getInt(3);
+        
+        // Validation ID moteur
+        if (id < 0 || id >= NUM_MOTORS) {
+            Serial.printf("❌ ID moteur invalide: %d (doit être 0-%d)\n", id, NUM_MOTORS-1);
+            return;
+        }
+        
+        // Validation microsteps (valeurs TMC2209 valides)
+        const int valid_microsteps[] = {1, 2, 4, 8, 16, 32, 64, 128, 256};
+        bool valid = false;
+        for (int v : valid_microsteps) {
+            if (microsteps == v) { valid = true; break; }
+        }
+        if (!valid) {
+            Serial.printf("❌ Microsteps invalide: %d (doit être 1,2,4,8,16,32,64,128,256)\n", microsteps);
+            return;
+        }
+        
+        // Validation courant (max 2000 mA)
+        if (current < 0 || current > 2000) {
+            Serial.printf("❌ Courant invalide: %d mA (max 2000 mA)\n", current);
+            return;
+        }
+        
+        // Appeler la fonction de mise à jour
+        updateMotorDriverParam(id, microsteps, current, spreadCycle != 0);
+    });
+
+    msg.dispatch("/motor/microsteps", [](OSCMessage &m){
+        if (m.size() < 2) {
+            Serial.println("❌ /motor/microsteps: 2 paramètres requis (id, microsteps)");
+            return;
+        }
+        
+        int id = m.getInt(0);
+        int microsteps = m.getInt(1);
+        
+        // Validation ID
+        if (id < 0 || id >= NUM_MOTORS) {
+            Serial.printf("❌ ID moteur invalide: %d\n", id);
+            return;
+        }
+        
+        // Validation microsteps
+        const int valid_microsteps[] = {1, 2, 4, 8, 16, 32, 64, 128, 256};
+        bool valid = false;
+        for (int v : valid_microsteps) {
+            if (microsteps == v) { valid = true; break; }
+        }
+        if (!valid) {
+            Serial.printf("❌ Microsteps invalide: %d\n", microsteps);
+            return;
+        }
+        
+        // Mise à jour (0 pour current = pas de changement)
+        updateMotorDriverParam(id, microsteps, 0, cfg[id].spreadcycle);
+    });
+
+    msg.dispatch("/motor/current", [](OSCMessage &m){
+        if (m.size() < 2) {
+            Serial.println("❌ /motor/current: 2 paramètres requis (id, mA)");
+            return;
+        }
+        
+        int id = m.getInt(0);
+        int current = m.getInt(1);
+        
+        // Validation ID
+        if (id < 0 || id >= NUM_MOTORS) {
+            Serial.printf("❌ ID moteur invalide: %d\n", id);
+            return;
+        }
+        
+        // Validation courant
+        if (current < 0 || current > 2000) {
+            Serial.printf("❌ Courant invalide: %d mA (max 2000 mA)\n", current);
+            return;
+        }
+        
+        // Mise à jour (0 pour microsteps = pas de changement)
+        updateMotorDriverParam(id, 0, current, cfg[id].spreadcycle);
+    });
+
+    msg.dispatch("/motor/mode", [](OSCMessage &m){
+        if (m.size() < 2) {
+            Serial.println("❌ /motor/mode: 2 paramètres requis (id, spreadCycle)");
+            return;
+        }
+        
+        int id = m.getInt(0);
+        int spreadCycle = m.getInt(1);
+        
+        // Validation ID
+        if (id < 0 || id >= NUM_MOTORS) {
+            Serial.printf("❌ ID moteur invalide: %d\n", id);
+            return;
+        }
+        
+        // Mise à jour (0 pour microsteps et current = pas de changement)
+        updateMotorDriverParam(id, 0, 0, spreadCycle != 0);
+    });
 }
 
 void OSCManager::handleHomingRoutes(OSCMessage &msg) {
