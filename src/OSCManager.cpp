@@ -247,7 +247,10 @@ void OSCManager::handleInterpolationRoutes(OSCMessage &msg) {
         if (enable) {
             uint32_t T_ms = (duration <= 0 ? 5000 : (uint32_t)lround(duration * 1000));
             interpAuto.T_ms = T_ms;
-            interpAuto.t0_ms = millis();
+            
+            // NEW: align starting point based on current Slide position
+            float u0 = findClosestFractionToCurrentPos();
+            interpAuto.t0_ms = millis() - (uint32_t)(u0 * T_ms);
             interpAuto.active = true;
             
             // Sauvegarder le baseline des offsets
@@ -256,10 +259,15 @@ void OSCManager::handleInterpolationRoutes(OSCMessage &msg) {
             // Désactiver modes concurrents
             stopSynchronizedMove();
             
-            Serial.printf("▶️ Interpolation auto ON (T=%u ms, %.1fs)\n", T_ms, duration);
+            Serial.printf("▶️ Interpolation auto ON (T=%u ms, %.1fs) starting at u0=%.3f (%.1f%%)\n",
+                          T_ms, duration, u0, u0 * 100.0f);
         } else {
             interpAuto.active = false;
-            Serial.println("⏹️ Interpolation auto OFF");
+            
+            // Arrêt doux avec décélération progressive
+            softStopAllMotors();
+            
+            Serial.println("⏹️ Interpolation auto OFF (arrêt doux)");
         }
     });
     
@@ -291,8 +299,22 @@ void OSCManager::handleInterpolationRoutes(OSCMessage &msg) {
         interpAuto.active = false;
         stopSynchronizedMove();
         
+        static bool firstJog = true;
+        static float lastJogValue = 0.0f;
+        
+        // Align trajectory on first jog move
+        if (fabsf(value) > 0.001f && (firstJog || fabsf(value - lastJogValue) > 0.05f)) {
+            float u0 = findClosestFractionToCurrentPos();
+            interp_pos = u0;
+            Serial.printf("⚙️ Interp jog aligned at u0=%.3f (%.1f%%)\n", u0, u0 * 100.0f);
+            firstJog = false;
+        } else if (fabsf(value) < 0.001f) {
+            firstJog = true;
+        }
+        
         // Appliquer la nouvelle consigne de vitesse de l'axe d'interpolation
         interp_jog_cmd = value;
+        lastJogValue = value;
         Serial.printf("🎛️ Interp jog speed = %.2f\n", value);
     });
 }
@@ -312,7 +334,12 @@ void OSCManager::handleBankRoutes(OSCMessage &msg) {
                 interp_offset_p = interp_offset_t = interp_offset_z = interp_offset_s = 0;
                 Serial.println("🔄 Offsets joystick réinitialisés au changement de banque");
 
-                Serial.printf("🏦 Banque active changée vers %d\n", idx);
+                // NEW: realign interpolation after bank change
+                float u0 = findClosestFractionToCurrentPos();
+                interp_pos = u0;
+
+                Serial.printf("🏦 Bank changed to %d, aligned interp_pos at u0=%.3f (%.1f%%)\n",
+                              idx, u0, u0 * 100.0f);
                 
                 // Renvoyer les points d'interpolation après le chargement
                 DynamicJsonDocument doc(1024);

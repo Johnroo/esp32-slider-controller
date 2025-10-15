@@ -23,6 +23,7 @@ uint8_t activeBank = 0;
 Preferences nvs;
 InterpAuto interpAuto;
 float interp_jog_cmd = 0.0f;
+float interp_pos = 0.0f;  // Position d'interpolation continue sur [0..1]
 
 // Offsets persistants pendant l'interpolation (auto ou jog)
 long interp_offset_p = 0;
@@ -389,8 +390,6 @@ void setInterpJogCommand(float cmd) {
  * @details Intègre interp_jog_cmd comme vitesse sur l'axe d'interpolation
  */
 void updateInterpolationJog() {
-    // Position d'interpolation continue sur [0..1]
-    static float interp_pos = 0.0f;
     // Filtre IIR de la vitesse utilisateur (commande OSC /interp/jog)
     static float vel = 0.0f;
     // Mémoire pour intégration temporelle
@@ -459,6 +458,40 @@ void updateInterpolationJog() {
     steppers[1]->moveTo(T);
     steppers[2]->moveTo(Z);
     steppers[3]->moveTo(S);
+}
+
+/**
+ * @brief Trouve la fraction d'interpolation la plus proche de la position actuelle du Slide
+ * @return Fraction optimale u0 (0.0-1.0)
+ */
+float findClosestFractionToCurrentPos() {
+    long curS = steppers[3]->getCurrentPosition(); // current Slide position
+
+    float best_u = 0.0f;
+    float best_err = 1e12;
+
+    // --- coarse scan every 1% ---
+    for (float u = 0.0f; u <= 1.0f; u += 0.01f) {
+        long p, t, z, s;
+        computeInterpolatedPosition(u, p, t, z, s);
+        float err = fabsf((float)(s - curS));  // only Slide axis
+        if (err < best_err) { best_err = err; best_u = u; }
+    }
+
+    // --- refine around the best candidate (0.1% steps) ---
+    float u_min = max(0.0f, best_u - 0.02f);
+    float u_max = min(1.0f, best_u + 0.02f);
+    best_err = 1e12;
+
+    for (float u = u_min; u <= u_max; u += 0.001f) {
+        long p, t, z, s;
+        computeInterpolatedPosition(u, p, t, z, s);
+        float err = fabsf((float)(s - curS));
+        if (err < best_err) { best_err = err; best_u = u; }
+    }
+
+    Serial.printf("🔍 findClosestFractionToCurrentPos (Slide-only): u0=%.3f (%.1f%%)\n", best_u, best_u * 100.0f);
+    return best_u;
 }
 
 /**

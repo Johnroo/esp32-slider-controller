@@ -149,6 +149,18 @@ void emergencyStop() {
   panPos = tiltPos = zoomPos = slidePos = 0;
 }
 
+void softStopAllMotors() {
+  Serial.println("⏸️ Arrêt doux de tous les moteurs (avec décélération)");
+  
+  for (int i = 0; i < NUM_MOTORS; i++) {
+    if (steppers[i]) {
+      // stop() décélère progressivement jusqu'à l'arrêt
+      // au lieu de forceStop() qui arrête brutalement
+      steppers[i]->stopMove();
+    }
+  }
+}
+
 /**
  * @brief Met à jour les paramètres du driver TMC2209 en temps réel
  * @param motor ID du moteur (0=PAN, 1=TILT, 2=ZOOM, 3=SLIDE)

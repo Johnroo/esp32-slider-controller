@@ -48,6 +48,7 @@ extern uint8_t activeBank;
 extern Preferences nvs;
 extern InterpAuto interpAuto;
 extern float interp_jog_cmd;
+extern float interp_pos;
 
 //==================== Fonctions du module ====================
 
@@ -147,5 +148,11 @@ void setInterpJogCommand(float cmd);
  * @return Durée en millisecondes
  */
 uint32_t pickDurationMsForDeltas(long deltaP, long deltaT, long deltaZ, long deltaS);
+
+/**
+ * @brief Trouve la fraction d'interpolation la plus proche de la position actuelle du Slide
+ * @return Fraction optimale u0 (0.0-1.0)
+ */
+float findClosestFractionToCurrentPos();
 
 #endif // PRESETS_H

@@ -112,6 +112,11 @@ bool isMotorMoving(int motor_id);
 void emergencyStop();
 
 /**
+ * @brief Arrête tous les moteurs en douceur avec décélération progressive
+ */
+void softStopAllMotors();
+
+/**
  * @brief Met à jour les paramètres du driver TMC2209 en temps réel
  * @param motor ID du moteur (0=PAN, 1=TILT, 2=ZOOM, 3=SLIDE)
  * @param microsteps Nombre de microsteps (0 = pas de changement, >0 = nouvelle valeur)
