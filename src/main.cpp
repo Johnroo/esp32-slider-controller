@@ -73,8 +73,15 @@ void setup() {
   initPresets();
   initMotionPlanner();
   initJoystick();
-  initNetwork();
-  initOTA();
+  
+  // Initialiser le réseau (WiFi + mDNS)
+  if (initNetwork()) {
+    initMDNS();
+    initOTA();
+  } else {
+    Serial.println("⚠️ WiFi non connecté, certaines fonctionnalités réseau indisponibles");
+  }
+  
   initWebServer();
   OSCManager::initOSC();
   Diagnostics::initDiagnostics();

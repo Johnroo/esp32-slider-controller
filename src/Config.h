@@ -130,6 +130,21 @@ extern const int ENABLE_PINS[NUM_MOTORS];
 // Port web server
 #define WEB_SERVER_PORT 80
 
+// Hostname par défaut
+#define DEFAULT_HOSTNAME "slider1"
+
+// Configuration réseau
+struct NetworkConfig {
+  char hostname[32];
+  bool useDHCP;
+  char staticIP[16];
+  char gateway[16];
+  char subnet[16];
+  char dns[16];
+};
+
+extern NetworkConfig networkConfig;
+
 //==================== Configuration du suivi ====================
 
 // Mapping slide -> pan/tilt supprimé (mode follow obsolète)
@@ -209,5 +224,20 @@ void setDefaultMoveDuration(uint32_t durationMs);
  * @brief Affiche la configuration actuelle
  */
 void printConfig();
+
+/**
+ * @brief Charge la configuration réseau depuis NVS
+ */
+void loadNetworkConfig();
+
+/**
+ * @brief Sauvegarde la configuration réseau dans NVS
+ */
+void saveNetworkConfig();
+
+/**
+ * @brief Réinitialise la configuration réseau aux valeurs par défaut
+ */
+void resetNetworkConfig();
 
 #endif // CONFIG_H

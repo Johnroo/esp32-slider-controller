@@ -6,6 +6,7 @@
  */
 
 #include "Config.h"
+#include <Preferences.h>
 
 //==================== Variables globales configurables ====================
 
@@ -23,6 +24,16 @@ float SLIDE_JOG_SPEED = DEFAULT_SLIDE_JOG_SPEED;
 
 // Durée par défaut des mouvements
 uint32_t DEFAULT_MOVE_DURATION_MS = DEFAULT_MOVE_DURATION;
+
+// Configuration réseau
+NetworkConfig networkConfig = {
+  DEFAULT_HOSTNAME,  // hostname
+  true,              // useDHCP
+  "192.168.1.100",   // staticIP
+  "192.168.1.1",     // gateway
+  "255.255.255.0",   // subnet
+  "8.8.8.8"          // dns
+};
 
 //==================== Configuration matérielle ====================
 
@@ -162,6 +173,100 @@ void printConfig() {
   Serial.printf("🌐 Réseau:\n");
   Serial.printf("  - Port OSC: %d\n", OSC_PORT);
   Serial.printf("  - Port Web: %d\n", WEB_SERVER_PORT);
+  Serial.printf("  - Hostname: %s.local\n", networkConfig.hostname);
+  Serial.printf("  - Mode: %s\n", networkConfig.useDHCP ? "DHCP" : "Static IP");
+  if (!networkConfig.useDHCP) {
+    Serial.printf("  - IP: %s\n", networkConfig.staticIP);
+    Serial.printf("  - Gateway: %s\n", networkConfig.gateway);
+    Serial.printf("  - Subnet: %s\n", networkConfig.subnet);
+    Serial.printf("  - DNS: %s\n", networkConfig.dns);
+  }
   
   Serial.println("==========================\n");
+}
+
+/**
+ * @brief Charge la configuration réseau depuis NVS
+ */
+void loadNetworkConfig() {
+  Preferences prefs;
+  if (!prefs.begin("network", true)) {  // read-only
+    Serial.println("⚠️ Erreur lecture NVS network, utilisation config par défaut");
+    return;
+  }
+  
+  String hostname = prefs.getString("hostname", DEFAULT_HOSTNAME);
+  if (hostname.length() > 0 && hostname.length() < 32) {
+    strncpy(networkConfig.hostname, hostname.c_str(), 31);
+    networkConfig.hostname[31] = '\0';
+  }
+  
+  networkConfig.useDHCP = prefs.getBool("useDHCP", true);
+  
+  String staticIP = prefs.getString("staticIP", "192.168.1.100");
+  String gateway = prefs.getString("gateway", "192.168.1.1");
+  String subnet = prefs.getString("subnet", "255.255.255.0");
+  String dns = prefs.getString("dns", "8.8.8.8");
+  
+  strncpy(networkConfig.staticIP, staticIP.c_str(), 15);
+  networkConfig.staticIP[15] = '\0';
+  strncpy(networkConfig.gateway, gateway.c_str(), 15);
+  networkConfig.gateway[15] = '\0';
+  strncpy(networkConfig.subnet, subnet.c_str(), 15);
+  networkConfig.subnet[15] = '\0';
+  strncpy(networkConfig.dns, dns.c_str(), 15);
+  networkConfig.dns[15] = '\0';
+  
+  prefs.end();
+  
+  Serial.printf("📂 Config réseau chargée: %s.local (%s)\n", 
+                networkConfig.hostname, 
+                networkConfig.useDHCP ? "DHCP" : networkConfig.staticIP);
+}
+
+/**
+ * @brief Sauvegarde la configuration réseau dans NVS
+ */
+void saveNetworkConfig() {
+  Preferences prefs;
+  if (!prefs.begin("network", false)) {  // read-write
+    Serial.println("❌ Erreur sauvegarde config réseau dans NVS");
+    return;
+  }
+  
+  prefs.putString("hostname", networkConfig.hostname);
+  prefs.putBool("useDHCP", networkConfig.useDHCP);
+  prefs.putString("staticIP", networkConfig.staticIP);
+  prefs.putString("gateway", networkConfig.gateway);
+  prefs.putString("subnet", networkConfig.subnet);
+  prefs.putString("dns", networkConfig.dns);
+  
+  prefs.end();
+  
+  Serial.printf("💾 Config réseau sauvegardée: %s.local (%s)\n", 
+                networkConfig.hostname,
+                networkConfig.useDHCP ? "DHCP" : networkConfig.staticIP);
+}
+
+/**
+ * @brief Réinitialise la configuration réseau aux valeurs par défaut
+ */
+void resetNetworkConfig() {
+  Preferences prefs;
+  if (prefs.begin("network", false)) {  // read-write
+    prefs.clear();
+    prefs.end();
+    Serial.println("🔄 Configuration réseau effacée de NVS");
+  }
+  
+  // Réinitialiser en mémoire
+  strncpy(networkConfig.hostname, DEFAULT_HOSTNAME, 31);
+  networkConfig.hostname[31] = '\0';
+  networkConfig.useDHCP = true;
+  strncpy(networkConfig.staticIP, "192.168.1.100", 15);
+  strncpy(networkConfig.gateway, "192.168.1.1", 15);
+  strncpy(networkConfig.subnet, "255.255.255.0", 15);
+  strncpy(networkConfig.dns, "8.8.8.8", 15);
+  
+  Serial.println("🔄 Configuration réseau réinitialisée");
 }

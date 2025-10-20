@@ -195,3 +195,40 @@ Définit 3 points : preset 0 à 0%, preset 1 à 50%, preset 2 à 100%.
 /motor/pan/max_speed 5000
 /motor/slide/max_accel 2000
 ```
+
+### Réseau et Système
+```
+/network/info              # Affiche les informations réseau
+/network/reset             # Réinitialise la config réseau et redémarre en mode AP
+/system/restart            # Redémarre l'ESP32
+```
+
+## 🌐 Configuration Réseau (mDNS + WiFiManager)
+
+L'ESP32 démarre avec un portail captif "Slider-Setup" si aucun WiFi n'est configuré.
+
+### Portail Captif "Slider-Setup"
+
+Au premier démarrage (ou après reset réseau) :
+1. L'ESP32 crée un point d'accès WiFi : **"Slider-Setup"**
+2. Connectez-vous à ce réseau
+3. Allez sur `http://192.168.4.1`
+4. Configurez :
+   - **SSID/Mot de passe** du WiFi principal
+   - **Hostname** (ex: slider1) → accessible via `http://hostname.local`
+   - **Mode IP** : DHCP ou Static
+   - **IP/Gateway/Subnet/DNS** (si Static)
+
+### Accès après configuration
+
+- Via mDNS : `http://hostname.local` (ex: `http://slider1.local`)
+- Via IP : `http://192.168.1.xxx`
+- OSC : port 8000
+- Web : port 80
+
+### Réinitialisation réseau
+
+Pour revenir au portail captif :
+- OSC : `/network/reset`
+- HTTP : `POST /api/network/reset`
+- Ou via bouton sur interface web (si implémentée)

@@ -6,6 +6,7 @@
 #include "MotionPlanner.h"
 #include "Homing.h"
 #include "Utils.h"
+#include "NetworkManager.h"
 #include <ArduinoJson.h>
 
 // Déclarations externes pour les offsets persistants
@@ -670,5 +671,30 @@ void OSCManager::handleConfigRoutes(OSCMessage &msg) {
         long slide = (m.size() > 3) ? m.getInt(3) : DEFAULT_SLIDE_SLEW_RANGE;
         setOffsetRanges(pan, tilt, zoom, slide);
     });
+    
+    // Routes réseau
+    msg.dispatch("/network/info", [](OSCMessage &m){
+        Serial.println("📡 ═══ Network Info ═══");
+        Serial.printf("  Hostname: %s.local\n", networkConfig.hostname);
+        Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("  Gateway: %s\n", WiFi.gatewayIP().toString().c_str());
+        Serial.printf("  Mode: %s\n", networkConfig.useDHCP ? "DHCP" : "Static");
+        if (!networkConfig.useDHCP) {
+            Serial.printf("  Static IP: %s\n", networkConfig.staticIP);
+        }
+        Serial.println("═══════════════════════");
+    });
+    
+    msg.dispatch("/network/reset", [](OSCMessage &m){
+        Serial.println("🔄 Réinitialisation réseau demandée via OSC");
+        resetWiFiAndRestart();
+    });
+    
+    msg.dispatch("/system/restart", [](OSCMessage &m){
+        Serial.println("🔄 Redémarrage système demandé via OSC");
+        delay(500);
+        ESP.restart();
+    });
+    
     // Routes /config/pan_map et /config/tilt_map supprimées (mode follow obsolète)
 }

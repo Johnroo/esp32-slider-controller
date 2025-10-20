@@ -10,6 +10,7 @@
 #include "MotorControl.h"
 #include "Presets.h"
 #include "MotionPlanner.h"
+#include "NetworkManager.h"
 
 //==================== Variables globales ====================
 
@@ -153,6 +154,55 @@ void initWebServer() {
     String jsonString;
     serializeJson(doc, jsonString);
     req->send(200, "application/json", jsonString);
+  });
+  
+  //==================== Network Configuration Routes ====================
+  
+  // Route pour obtenir les informations réseau
+  webServer.on("/api/network/info", HTTP_GET, [](AsyncWebServerRequest *request){
+    DynamicJsonDocument doc(512);
+    doc["hostname"] = networkConfig.hostname;
+    doc["ip"] = WiFi.localIP().toString();
+    doc["gateway"] = WiFi.gatewayIP().toString();
+    doc["subnet"] = WiFi.subnetMask().toString();
+    doc["dns"] = WiFi.dnsIP().toString();
+    doc["useDHCP"] = networkConfig.useDHCP;
+    doc["staticIP"] = networkConfig.staticIP;
+    doc["staticGateway"] = networkConfig.gateway;
+    doc["staticSubnet"] = networkConfig.subnet;
+    doc["staticDNS"] = networkConfig.dns;
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    request->send(200, "application/json", jsonString);
+  });
+  
+  // Route pour réinitialiser la configuration réseau
+  webServer.on("/api/network/reset", HTTP_POST, [](AsyncWebServerRequest *request){
+    DynamicJsonDocument doc(128);
+    doc["success"] = true;
+    doc["message"] = "Réseau réinitialisé, redémarrage en mode configuration...";
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    request->send(200, "application/json", jsonString);
+    
+    delay(500);
+    resetWiFiAndRestart();
+  });
+  
+  // Route pour redémarrer l'ESP32
+  webServer.on("/api/system/restart", HTTP_POST, [](AsyncWebServerRequest *request){
+    DynamicJsonDocument doc(128);
+    doc["success"] = true;
+    doc["message"] = "Redémarrage...";
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    request->send(200, "application/json", jsonString);
+    
+    delay(500);
+    ESP.restart();
   });
   
   webServer.begin();
