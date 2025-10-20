@@ -73,20 +73,17 @@ bool initNetwork() {
   wifiManager.addParameter(&customSubnet);
   wifiManager.addParameter(&customDNS);
   
-  // Configurer le timeout du portail captif
-  wifiManager.setConfigPortalTimeout(180); // 3 minutes
-  wifiManager.setConnectTimeout(15);       // 15 secondes pour la connexion
-  wifiManager.setConnectRetries(3);        // 3 tentatives max
-  
-  // Mode non-bloquant si on veut juste se connecter sans portail
-  wifiManager.setConfigPortalBlocking(false);
+  // Configurer le timeout
+  wifiManager.setConfigPortalTimeout(0);   // Pas de timeout = bloquant jusqu'à config
+  wifiManager.setConnectTimeout(20);       // 20 secondes pour la connexion
   
   // Tenter la connexion automatique
   bool connected = false;
   
   Serial.println("📡 Tentative de connexion WiFi...");
   
-  // Essayer autoConnect non-bloquant d'abord
+  // autoConnect essaie de se connecter au WiFi sauvegardé
+  // Si échec, lance le portail captif "Slider-Setup"
   connected = wifiManager.autoConnect("Slider-Setup");
   
   if (connected) {
@@ -121,19 +118,11 @@ bool initNetwork() {
       shouldSaveConfig = false;
     }
     
-    connectionRetries = 0;  // Reset compteur
     return true;
     
   } else {
-    Serial.println("❌ Échec de connexion WiFi");
-    connectionRetries++;
-    
-    if (connectionRetries >= MAX_RETRIES) {
-      Serial.println("⚠️ Trop d'échecs de connexion, lancement du portail captif...");
-      startConfigPortal();
-      return false;
-    }
-    
+    // Ne devrait jamais arriver car autoConnect bloque jusqu'à connexion
+    Serial.println("❌ Échec de connexion WiFi (timeout portail)");
     return false;
   }
 }
