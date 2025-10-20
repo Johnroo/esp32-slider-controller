@@ -75,12 +75,18 @@ bool initNetwork() {
   
   // Configurer le timeout du portail captif
   wifiManager.setConfigPortalTimeout(180); // 3 minutes
-  wifiManager.setConnectTimeout(30);       // 30 secondes pour la connexion
+  wifiManager.setConnectTimeout(15);       // 15 secondes pour la connexion
+  wifiManager.setConnectRetries(3);        // 3 tentatives max
+  
+  // Mode non-bloquant si on veut juste se connecter sans portail
+  wifiManager.setConfigPortalBlocking(false);
   
   // Tenter la connexion automatique
   bool connected = false;
   
   Serial.println("📡 Tentative de connexion WiFi...");
+  
+  // Essayer autoConnect non-bloquant d'abord
   connected = wifiManager.autoConnect("Slider-Setup");
   
   if (connected) {
@@ -263,13 +269,18 @@ void startConfigPortal() {
 void resetWiFiAndRestart() {
   Serial.println("🔄 Réinitialisation configuration réseau...");
   
-  // Effacer les credentials WiFi
+  // Effacer les credentials WiFi du WiFiManager
   wifiManager.resetSettings();
   
-  // Effacer la config réseau
+  // Déconnecter et effacer la config WiFi de l'ESP32
+  WiFi.disconnect(true, true);  // disconnect + erase
+  
+  // Effacer la config réseau NVS
   resetNetworkConfig();
   
   Serial.println("🔄 Redémarrage en mode configuration...");
-  delay(1000);
+  Serial.println("📱 L'ESP32 va créer le point d'accès: Slider-Setup");
+  
+  delay(2000);
   ESP.restart();
 }
